@@ -64,6 +64,10 @@ export async function loadLatestReport(): Promise<DailyReport | null> {
   }
 }
 
+export function latestReportPath(): string {
+  return LATEST;
+}
+
 export async function writeJobStatus(status: JobStatus): Promise<void> {
   await ensureDirs();
   await fs.writeFile(STATUS, JSON.stringify(status, null, 2));
