@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+data/reports
+data/cache
+data/latest.json
+data/state.json
+*.md
+AGENTS.md
+CLAUDE.md

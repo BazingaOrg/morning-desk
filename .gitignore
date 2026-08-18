@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated reports
+/data/reports
+/data/cache
+/data/latest.json
+/data/state.json
