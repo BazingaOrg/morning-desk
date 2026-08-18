@@ -1,4 +1,4 @@
 SHELL=/bin/bash
 TZ=Asia/Shanghai
 
-0 9 * * 1-5 cd /opt/morning-desk && /usr/bin/docker compose exec -T app npm run generate >> /var/log/morning-desk-generate.log 2>&1
+0 9 * * 1-5 root cd /opt/morning-desk && /usr/bin/docker compose exec -T app npm run generate >> /var/log/morning-desk-generate.log 2>&1

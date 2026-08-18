@@ -157,9 +157,24 @@ export function Briefing({ report }: { report: DailyReport }) {
       <p className="issue-sub">The Morning Desk · 判断市场是否正在重新定价</p>
 
       <div className="tape">
-        <p className="tape-kicker">
-          今日 · 放在完整交易日上看　美股 {report.us.label}　·　港股 {report.hk.label}　·　生成 {report.generatedAt}
-        </p>
+        <p className="tape-kicker">今日 · 下面数字用的是已完成交易日收盘，不是盘中价</p>
+        <div className="session-pills">
+          <div>
+            <small>美股收盘</small>
+            <b>{report.us.sessionDate ?? "暂无"}</b>
+            <span>{report.us.label}</span>
+          </div>
+          <div>
+            <small>港股收盘</small>
+            <b>{report.hk.sessionDate ?? "暂无"}</b>
+            <span>{report.hk.label}</span>
+          </div>
+          <div>
+            <small>本页生成</small>
+            <b>{report.generatedAt.slice(5, 16)}</b>
+            <span>北京时间</span>
+          </div>
+        </div>
         <div className="tape-grid">
           <div className="kpi">
             <small>涨跌家数</small>

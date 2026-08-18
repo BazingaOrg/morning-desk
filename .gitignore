@@ -45,3 +45,4 @@ next-env.d.ts
 /data/cache
 /data/latest.json
 /data/state.json
+/data/status.json

@@ -12,10 +12,14 @@ function currentTheme(): "light" | "dark" {
 
 export function ReportApp({
   initialReport,
+  initialUpdating,
 }: {
   initialReport: DailyReport | null;
+  initialUpdating: boolean;
 }) {
-  const [report] = useState(initialReport);
+  const [report, setReport] = useState(initialReport);
+  const [updating, setUpdating] = useState(initialUpdating);
+  const [failed, setFailed] = useState(false);
   const [active, setActive] = useState("lede");
   const theme = useSyncExternalStore(
     (cb) => {
@@ -29,6 +33,38 @@ export function ReportApp({
   );
 
   useEffect(() => {
+    if (!updating) return;
+    let stop = false;
+    async function tick() {
+      try {
+        const res = await fetch("/api/status", { cache: "no-store" });
+        const json = (await res.json()) as { live?: boolean; state?: string };
+        if (stop) return;
+        if (json.live) return;
+        if (json.state === "error") {
+          setUpdating(false);
+          setFailed(true);
+          return;
+        }
+        const latest = await fetch("/api/report", { cache: "no-store" });
+        const body = (await latest.json()) as { report: DailyReport | null };
+        if (stop) return;
+        if (body.report) setReport(body.report);
+        setUpdating(false);
+      } catch {
+        if (!stop) setFailed(true);
+      }
+    }
+    tick();
+    const id = window.setInterval(tick, 2500);
+    return () => {
+      stop = true;
+      window.clearInterval(id);
+    };
+  }, [updating]);
+
+  useEffect(() => {
+    if (updating) return;
     const ids = ["lede", "movers", "us", "hk", "thesis", "catalysts"];
     const nodes = ids
       .map((id) => document.getElementById(id))
@@ -45,7 +81,7 @@ export function ReportApp({
     );
     for (const node of nodes) io.observe(node);
     return () => io.disconnect();
-  }, [report]);
+  }, [report, updating]);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -85,13 +121,25 @@ export function ReportApp({
       </header>
 
       <main className="desk">
-        {report ? (
-          <Briefing report={report} />
+        {updating ? (
+          <div className="splash updating" role="status" aria-live="polite">
+            <p className="eyebrow">晨报生成中</p>
+            <h1>正在拉取完整收盘</h1>
+            <p className="lede">美股、港股分别取最近一个已完成交易日。约 1–2 分钟，完成后会自动刷新。此刻不展示上一份表格，以免和未完成的数据混在一起。</p>
+            <p className="pulse-line"><span className="pulse" aria-hidden="true" />准备日线与公告核对</p>
+          </div>
+        ) : report ? (
+          <>
+            {failed ? (
+              <p className="status">这次更新没有完成，下面仍是上一份完整收盘。</p>
+            ) : null}
+            <Briefing report={report} />
+          </>
         ) : (
           <div className="splash">
             <p className="eyebrow">尚无报告</p>
             <h1>晨间值守</h1>
-            <p className="lede">在服务器上运行 npm run generate，或等待工作日 09:00 定时任务。</p>
+            <p className="lede">等待工作日 09:00 定时任务，或在服务器运行 npm run generate。</p>
           </div>
         )}
       </main>

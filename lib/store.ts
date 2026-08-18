@@ -6,6 +6,16 @@ const DATA = path.join(process.cwd(), "data");
 const STATE = path.join(DATA, "state.json");
 const THESIS = path.join(DATA, "thesis.json");
 const LATEST = path.join(DATA, "latest.json");
+const STATUS = path.join(DATA, "status.json");
+
+export type JobState = "idle" | "running" | "ok" | "error";
+
+export interface JobStatus {
+  state: JobState;
+  startedAt?: string;
+  finishedAt?: string;
+  message?: string;
+}
 
 async function ensureDirs() {
   await fs.mkdir(DATA, { recursive: true });
@@ -52,4 +62,24 @@ export async function loadLatestReport(): Promise<DailyReport | null> {
   } catch {
     return null;
   }
+}
+
+export async function writeJobStatus(status: JobStatus): Promise<void> {
+  await ensureDirs();
+  await fs.writeFile(STATUS, JSON.stringify(status, null, 2));
+}
+
+export async function loadJobStatus(): Promise<JobStatus> {
+  try {
+    return JSON.parse(await fs.readFile(STATUS, "utf8")) as JobStatus;
+  } catch {
+    return { state: "idle" };
+  }
+}
+
+export function isJobLive(status: JobStatus, staleMs = 10 * 60 * 1000): boolean {
+  if (status.state !== "running" || !status.startedAt) return false;
+  const started = Date.parse(status.startedAt);
+  if (Number.isNaN(started)) return false;
+  return Date.now() - started < staleMs;
 }
