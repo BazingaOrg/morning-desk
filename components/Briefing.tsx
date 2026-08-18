@@ -1,5 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { num, pct, price, ratio, signedClass } from "@/lib/format";
-import type { DailyReport, SecurityRow } from "@/lib/types";
+import type { DailyReport, RowTag, SecurityRow } from "@/lib/types";
 
 function issueNo(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -15,6 +18,17 @@ function weekday(ymd: string): string {
 function formatBeijingLongFromYmd(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return `${y}年${m}月${d}日`;
+}
+
+function formatBeijingShortFromYmd(ymd: string): string {
+  const [, m, d] = ymd.split("-").map(Number);
+  return `${m}月${d}日`;
+}
+
+function tagShort(tag: RowTag): string | null {
+  if (tag === "需重新评估") return "重评";
+  if (tag === "明显走强") return "走强";
+  return null;
 }
 
 function hasThesis(rows: SecurityRow[]): boolean {
@@ -49,6 +63,95 @@ function kpis(report: DailyReport) {
   };
 }
 
+function BookList({
+  rows,
+  showThesis,
+}: {
+  rows: SecurityRow[];
+  showThesis: boolean;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  return (
+    <ul className="book">
+      <li className="book-head">
+        <span>代码</span>
+        <span>1D</span>
+      </li>
+      {rows.map((row) => {
+        const open = openId === row.id;
+        const tag = tagShort(row.tag);
+        const ytdValue = row.ytdLabel === "YTD" ? row.retYtd : row.sinceListing;
+        return (
+          <li key={row.id} className="book-item" data-tag={row.tag} data-open={open ? "true" : undefined}>
+            <button
+              type="button"
+              className="book-row"
+              aria-expanded={open}
+              aria-label={`${row.display} ${row.name} 日收益 ${pct(row.ret1D)}`}
+              onClick={() => setOpenId(open ? null : row.id)}
+            >
+              <span className="book-who">
+                <span className="sym">{row.display}</span>
+                <span className="name">
+                  {row.name}
+                  {row.inverse ? " · 反向 −2x" : ""}
+                  {row.limitedExcess ? " · SPAC" : ""}
+                </span>
+              </span>
+              <span className="book-end">
+                {tag ? <span className="book-tag" title={row.tag}>{tag}</span> : null}
+                {row.volumeClass === "明显放量" || row.volumeClass === "明显缩量" ? (
+                  <span className="book-cue">{row.volumeClass === "明显放量" ? "放量" : "缩量"}</span>
+                ) : null}
+                <span className={`book-1d mono ${signedClass(row.ret1D)}`}>{pct(row.ret1D)}</span>
+              </span>
+            </button>
+            {open ? (
+              <dl className="book-more">
+                <div>
+                  <dt>收盘</dt>
+                  <dd className="mono">{price(row.close)}</dd>
+                </div>
+                <div>
+                  <dt>10D</dt>
+                  <dd className={`mono ${signedClass(row.ret10D)}`}>{pct(row.ret10D)}</dd>
+                </div>
+                <div>
+                  <dt>超额</dt>
+                  <dd className={`mono ${row.inverse ? "num-flat" : signedClass(row.excess10D)}`}>
+                    {row.inverse ? "—" : pct(row.excess10D)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>量比</dt>
+                  <dd className="mono">
+                    {ratio(row.volumeRatio)}
+                    {row.volumeClass ? <span className="name"> {row.volumeClass}</span> : null}
+                  </dd>
+                </div>
+                <div>
+                  <dt>距高点</dt>
+                  <dd className={`mono ${signedClass(row.dist52W)}`}>{pct(row.dist52W)}</dd>
+                </div>
+                <div>
+                  <dt>{row.ytdLabel === "YTD" ? "YTD" : "上市以来"}</dt>
+                  <dd className={`mono ${signedClass(ytdValue)}`}>{pct(ytdValue)}</dd>
+                </div>
+                {showThesis ? (
+                  <div>
+                    <dt>Thesis</dt>
+                    <dd>{row.thesisStatus}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function UniverseTable({
   rows,
   caption,
@@ -71,6 +174,7 @@ function UniverseTable({
         <span><i style={{ background: "var(--gold)" }} />重点关注</span>
         <span><i style={{ background: "var(--verdant)" }} />明显走强</span>
       </p>
+      <BookList rows={rows} showThesis={showThesis} />
       <div className="table-wrap">
         <table className={`tape-table ${showThesis ? "has-thesis" : "no-thesis"}`}>
           <colgroup>
@@ -80,9 +184,9 @@ function UniverseTable({
             <col className="c-ret" />
             <col className="c-ret" />
             <col className="c-ret" />
-            <col className="c-vol" />
-            <col className="c-ret" />
-            <col className="c-ytd" />
+            <col className="c-vol col-secondary" />
+            <col className="c-dist col-secondary" />
+            <col className="c-ytd col-secondary" />
             {showThesis ? <col className="c-thesis" /> : null}
           </colgroup>
           <thead>
@@ -93,9 +197,9 @@ function UniverseTable({
               <th>1D</th>
               <th>10D</th>
               <th>超额</th>
-              <th>量比</th>
-              <th>距高点</th>
-              <th>YTD</th>
+              <th className="col-secondary">量比</th>
+              <th className="col-secondary">距高点</th>
+              <th className="col-secondary">YTD</th>
               {showThesis ? <th>Thesis</th> : null}
             </tr>
           </thead>
@@ -114,12 +218,12 @@ function UniverseTable({
                 <td className={`mono ${row.inverse ? "num-flat" : signedClass(row.excess10D)}`}>
                   {row.inverse ? "—" : pct(row.excess10D)}
                 </td>
-                <td className="mono">
+                <td className="mono col-secondary">
                   {ratio(row.volumeRatio)}
                   <div className="name">{row.volumeClass ?? ""}</div>
                 </td>
-                <td className={`mono ${signedClass(row.dist52W)}`}>{pct(row.dist52W)}</td>
-                <td className={`mono ${signedClass(row.ytdLabel === "YTD" ? row.retYtd : row.sinceListing)}`}>
+                <td className={`mono col-secondary ${signedClass(row.dist52W)}`}>{pct(row.dist52W)}</td>
+                <td className={`mono col-secondary ${signedClass(row.ytdLabel === "YTD" ? row.retYtd : row.sinceListing)}`}>
                   {row.ytdLabel === "YTD" ? pct(row.retYtd) : pct(row.sinceListing)}
                   {row.ytdLabel !== "YTD" ? <div className="name">上市以来</div> : null}
                 </td>
@@ -145,8 +249,9 @@ export function Briefing({ report }: { report: DailyReport }) {
     <article>
       <header className="issuebar">
         <div className="issue-meta">
-          VOL. {report.beijingDate.slice(0, 4)} · NO. {issueNo(report.beijingDate)}
-          <div>{formatBeijingLongFromYmd(report.beijingDate)} · {weekday(report.beijingDate)}</div>
+          <span className="issue-vol">VOL. {report.beijingDate.slice(0, 4)} · NO. {issueNo(report.beijingDate)}</span>
+          <div className="issue-date">{formatBeijingLongFromYmd(report.beijingDate)} · {weekday(report.beijingDate)}</div>
+          <div className="issue-date-short">{formatBeijingShortFromYmd(report.beijingDate)} · {weekday(report.beijingDate)}</div>
         </div>
         <div className="wordmark">晨间值守</div>
         <div className="issue-side">
@@ -156,59 +261,76 @@ export function Briefing({ report }: { report: DailyReport }) {
       </header>
       <p className="issue-sub">The Morning Desk · 判断市场是否正在重新定价</p>
 
-      <div className="tape">
-        <p className="tape-kicker">今日 · 下面数字用的是已完成交易日收盘，不是盘中价</p>
-        <div className="session-pills">
-          <div>
-            <small>美股收盘</small>
-            <b>{report.us.sessionDate ?? "暂无"}</b>
-            <span>{report.us.label}</span>
+      <div className="brief-lead">
+        <div className="tape-block">
+          <div className="tape">
+            <p className="tape-kicker">今日 · 下面数字用的是已完成交易日收盘，不是盘中价</p>
+            <div className="tape-digest">
+              <p>
+                美股 {report.us.sessionDate ?? "暂无"}
+                <span className="tape-dot"> · </span>
+                港股 {report.hk.sessionDate ?? "暂无"}
+              </p>
+              <p>
+                {stat.breadth} 上涨
+                <span className="tape-dot"> · </span>
+                强 {stat.strong}
+                <span className="tape-dot"> · </span>
+                弱 {stat.weak}
+                <span className="tape-dot"> · </span>
+                量能 {stat.volume}
+              </p>
+            </div>
+            <div className="session-pills">
+              <div>
+                <small>美股收盘</small>
+                <b>{report.us.sessionDate ?? "暂无"}</b>
+                <span>{report.us.label}</span>
+              </div>
+              <div>
+                <small>港股收盘</small>
+                <b>{report.hk.sessionDate ?? "暂无"}</b>
+                <span>{report.hk.label}</span>
+              </div>
+              <div>
+                <small>本页生成</small>
+                <b>{report.generatedAt.slice(5, 16)}</b>
+                <span>北京时间</span>
+              </div>
+            </div>
+            <div className="tape-grid">
+              <div className="kpi">
+                <small>涨跌家数</small>
+                <b>{stat.breadth}</b>
+                <span>{stat.breadthNote}</span>
+              </div>
+              <div className="kpi">
+                <small>相对最强</small>
+                <b>{stat.strong}</b>
+                <span>按 10 日超额分组</span>
+              </div>
+              <div className="kpi">
+                <small>相对最弱</small>
+                <b>{stat.weak}</b>
+                <span>不是买卖方向</span>
+              </div>
+              <div className="kpi">
+                <small>量能极端</small>
+                <b>{stat.volume}</b>
+                <span>明显放量或缩量</span>
+              </div>
+              <div className="kpi">
+                <small>对上公告</small>
+                <b>{stat.filings}</b>
+                <span>SEC / HKEX 原文</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <small>港股收盘</small>
-            <b>{report.hk.sessionDate ?? "暂无"}</b>
-            <span>{report.hk.label}</span>
-          </div>
-          <div>
-            <small>本页生成</small>
-            <b>{report.generatedAt.slice(5, 16)}</b>
-            <span>北京时间</span>
-          </div>
+          {report.closedBoth ? <div className="closed-banner">{report.closedNote}</div> : null}
         </div>
-        <div className="tape-grid">
-          <div className="kpi">
-            <small>涨跌家数</small>
-            <b>{stat.breadth}</b>
-            <span>{stat.breadthNote}</span>
-          </div>
-          <div className="kpi">
-            <small>相对最强</small>
-            <b>{stat.strong}</b>
-            <span>按 10 日超额分组</span>
-          </div>
-          <div className="kpi">
-            <small>相对最弱</small>
-            <b>{stat.weak}</b>
-            <span>不是买卖方向</span>
-          </div>
-          <div className="kpi">
-            <small>量能极端</small>
-            <b>{stat.volume}</b>
-            <span>明显放量或缩量</span>
-          </div>
-          <div className="kpi">
-            <small>对上公告</small>
-            <b>{stat.filings}</b>
-            <span>SEC / HKEX 原文</span>
-          </div>
-        </div>
-      </div>
 
-      {report.closedBoth ? <div className="closed-banner">{report.closedNote}</div> : null}
-
-      <div className="sheet-body">
         {!report.closedBoth ? (
-          <>
+          <div className="sheet-lead">
             <section className="section" id="lede">
               <p className="eyebrow">—— 卷一 · 今日判断</p>
               <h2>市场是否在重新定价</h2>
@@ -216,47 +338,56 @@ export function Briefing({ report }: { report: DailyReport }) {
                 <p key={line} className="lede">{line}</p>
               ))}
             </section>
+          </div>
+        ) : null}
+      </div>
 
-            <section className="section" id="movers">
-              <p className="eyebrow">—— 卷二 · 重点异动</p>
-              <h2>最多八条</h2>
-              {report.movers.length === 0 ? (
-                <p className="empty">今日无符合进入条件的新异动。</p>
-              ) : (
-                <div className="movers">
-                  <div className="mover-head">
-                    <div>代码</div>
-                    <div>1D</div>
-                    <div>10D</div>
-                    <div>超额</div>
-                    <div>量比</div>
-                    <div>为何入选</div>
-                  </div>
-                  {report.movers.map((m) => (
-                    <div key={m.id} className="mover">
-                      <div>
-                        <span className="sym">{m.display}</span>
-                        <span className="name">{m.name}</span>
-                        {m.reasonHref ? (
-                          <a className="reason" href={m.reasonHref} target="_blank" rel="noreferrer">
-                            {m.reason}
-                          </a>
-                        ) : null}
-                      </div>
-                      <div className={`mono ${signedClass(m.ret1D)}`} data-label="1D">{pct(m.ret1D)}</div>
-                      <div className={`mono ${signedClass(m.ret10D)}`} data-label="10D">{pct(m.ret10D)}</div>
-                      <div className={`mono ${signedClass(m.excess10D)}`} data-label="超额">{pct(m.excess10D)}</div>
-                      <div className="mono" data-label="量比">{ratio(m.volumeRatio)}</div>
-                      <div data-label="为何">{m.nature}</div>
-                    </div>
-                  ))}
+      <div className="sheet-body">
+        {!report.closedBoth ? (
+          <section className="section" id="movers">
+            <p className="eyebrow">—— 卷二 · 重点异动</p>
+            <h2>最多八条</h2>
+            {report.movers.length === 0 ? (
+              <p className="empty">今日无符合进入条件的新异动。</p>
+            ) : (
+              <div className="movers">
+                <div className="mover-head">
+                  <div>代码</div>
+                  <div>1D</div>
+                  <div>10D</div>
+                  <div>超额</div>
+                  <div>量比</div>
+                  <div>为何入选</div>
                 </div>
-              )}
-              <p className="footnote">
-                「为何入选」是价格或量能规则。只有对上 SEC / HKEX 原文时，代码下方才出现可点击公告。
-              </p>
-            </section>
-          </>
+                {report.movers.map((m) => (
+                  <div key={m.id} className="mover">
+                    <div className="mover-who">
+                      <span className="sym">{m.display}</span>
+                      <span className="name">{m.name}</span>
+                      {m.reasonHref ? (
+                        <a className="reason" href={m.reasonHref} target="_blank" rel="noreferrer">
+                          {m.reason}
+                        </a>
+                      ) : null}
+                    </div>
+                    <div className={`mover-ret1 mono ${signedClass(m.ret1D)}`} data-label="1D">{pct(m.ret1D)}</div>
+                    <div className={`mover-ret10 mono ${signedClass(m.ret10D)}`} data-label="10D">{pct(m.ret10D)}</div>
+                    <div className={`mover-xs mono ${signedClass(m.excess10D)}`} data-label="超额">{pct(m.excess10D)}</div>
+                    <div className="mover-vol mono" data-label="量比">{ratio(m.volumeRatio)}</div>
+                    <div className="mover-aux">
+                      <span>10D {pct(m.ret10D)}</span>
+                      <span>超额 {pct(m.excess10D)}</span>
+                      <span>量比 {ratio(m.volumeRatio)}</span>
+                    </div>
+                    <div className="mover-why" data-label="为何">{m.nature}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="footnote">
+              「为何入选」是价格或量能规则。只有对上 SEC / HKEX 原文时，代码下方才出现可点击公告。
+            </p>
+          </section>
         ) : null}
 
         <UniverseTable
