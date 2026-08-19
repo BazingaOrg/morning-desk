@@ -81,7 +81,7 @@ export async function loadJobStatus(): Promise<JobStatus> {
   }
 }
 
-export function isJobLive(status: JobStatus, staleMs = 10 * 60 * 1000): boolean {
+export function isJobLive(status: JobStatus, staleMs = 60 * 60 * 1000): boolean {
   if (status.state !== "running" || !status.startedAt) return false;
   const started = Date.parse(status.startedAt);
   if (Number.isNaN(started)) return false;

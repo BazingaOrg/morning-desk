@@ -8,7 +8,7 @@ import type {
   SplitEvent,
   UniverseItem,
 } from "./types";
-import { beijingDate } from "./time";
+import { cacheHasCompleteSession, beijingDate, HK_TZ, US_TZ } from "./time";
 import { UNIVERSE, yahooSymbols } from "./universe";
 
 const CACHE_DIR = path.join(process.cwd(), "data", "cache");
@@ -244,7 +244,7 @@ export async function fetchUniverseSeries(
       } satisfies UniverseItem);
 
     const cached = await readCache(yahoo);
-    if (cached && cached.beijingDate === beijingDate() && cached.bars.length) {
+    if (cached && cacheHasCompleteSession(cached.bars, item.market === "HK" ? HK_TZ : US_TZ, cached.beijingDate)) {
       const q = snapshot(
         yahoo,
         item.market,

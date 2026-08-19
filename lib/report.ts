@@ -1,5 +1,5 @@
 import { buildRow, sortRows } from "./calc";
-import { beijingDate, formatBeijingStamp, inNextDays } from "./time";
+import { beijingDate, formatBeijingStamp, HK_TZ, inNextDays, lastCompleteSessionDate, US_TZ } from "./time";
 import type {
   Catalyst,
   Chop,
@@ -13,40 +13,18 @@ import type {
 import { collectFacts, factsFor, type FactDoc } from "./facts";
 import { HK_REF, UNIVERSE, US_REF } from "./universe";
 import { fetchUniverseSeries } from "./yahoo";
-import { loadState, loadThesis, saveReport, saveState } from "./store";
+import { loadThesis, saveReport, saveState } from "./store";
 
-function lastCompleteDate(
-  bundle: SeriesBundle | undefined,
-  today: string,
-  marketState?: string,
-): string | null {
+function lastCompleteDate(bundle: SeriesBundle | undefined, exchangeTz: string): string | null {
   if (!bundle?.bars.length) return null;
-  const last = bundle.bars[bundle.bars.length - 1];
-  const inProgress =
-    last.date === today &&
-    (marketState === "REGULAR" || marketState === "PRE" || marketState === "PREPRE");
-  if (inProgress) {
-    return bundle.bars.length >= 2 ? bundle.bars[bundle.bars.length - 2].date : null;
-  }
-  return last.date;
+  const tz = bundle.quote?.exchangeTimezoneName || exchangeTz;
+  return lastCompleteSessionDate(
+    bundle.bars.map((bar) => bar.date),
+    tz,
+  );
 }
 
-function marketToday(bundle?: SeriesBundle): string {
-  const tz = bundle?.quote?.exchangeTimezoneName;
-  if (!tz) return beijingDate();
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
-function stampFor(
-  market: "US" | "HK",
-  sessionDate: string | null,
-  prev: string | null | undefined,
-): MarketStamp {
+function stampFor(market: "US" | "HK", sessionDate: string | null): MarketStamp {
   if (!sessionDate) {
     return {
       market,
@@ -56,13 +34,12 @@ function stampFor(
       label: "休市／无新收盘数据",
     };
   }
-  const isNew = !prev || prev !== sessionDate;
   return {
     market,
     sessionDate,
-    isNew,
-    closed: !isNew,
-    label: isNew ? `${sessionDate} 已收盘` : "休市／无新收盘数据",
+    isNew: true,
+    closed: false,
+    label: `${sessionDate} 已收盘`,
   };
 }
 
@@ -328,26 +305,16 @@ export async function generateReport(): Promise<DailyReport> {
   const generatedAt = new Date();
   const bj = beijingDate(generatedAt);
   const thesis = await loadThesis();
-  const prev = await loadState();
 
   const series = await fetchUniverseSeries(new Map());
 
   const usRef = series.get(US_REF);
   const hkRef = series.get(HK_REF);
-  const usSession = lastCompleteDate(usRef, marketToday(usRef), usRef?.quote?.marketState);
-  const hkSession = lastCompleteDate(hkRef, marketToday(hkRef), hkRef?.quote?.marketState);
+  const usSession = lastCompleteDate(usRef, US_TZ);
+  const hkSession = lastCompleteDate(hkRef, HK_TZ);
 
-  const us = stampFor("US", usSession, prev.lastUsSession);
-  const hk = stampFor("HK", hkSession, prev.lastHkSession);
-  const firstRun = !prev.lastUsSession && !prev.lastHkSession;
-  if (firstRun) {
-    us.isNew = Boolean(usSession);
-    us.closed = !us.isNew;
-    us.label = usSession ? `${usSession} 已收盘` : "休市／无新收盘数据";
-    hk.isNew = Boolean(hkSession);
-    hk.closed = !hk.isNew;
-    hk.label = hkSession ? `${hkSession} 已收盘` : "休市／无新收盘数据";
-  }
+  const us = stampFor("US", usSession);
+  const hk = stampFor("HK", hkSession);
 
   const closedBoth = !us.isNew && !hk.isNew;
   const usWindow = sessionWindow(usRef, usSession, 2);
