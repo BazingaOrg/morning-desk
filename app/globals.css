@@ -120,6 +120,10 @@ button, select { font: inherit; }
 .issue-side { text-align: right; }
 
 .wordmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22em;
   font-family: var(--font-serif);
   font-size: clamp(28px, 3.6vw, 40px);
   font-weight: 600;
@@ -127,6 +131,21 @@ button, select { font: inherit; }
   line-height: 1.05;
   text-align: center;
   animation: reveal 320ms var(--ease-out) both;
+}
+
+.wordmark-mark {
+  width: 0.95em;
+  height: 0.88em;
+  flex-shrink: 0;
+  color: var(--ink);
+}
+
+.splash-mark {
+  display: block;
+  width: 56px;
+  height: 52px;
+  margin: 0 0 16px;
+  color: var(--ink);
 }
 
 .issue-sub {
@@ -281,40 +300,20 @@ select.date-pick:disabled { opacity: 0.55; cursor: wait; }
   margin: 0 0 10px;
 }
 
-.session-pills {
+.session-pills,
+.tape-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1.2fr 1fr;
-  gap: 16px;
-  margin-bottom: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: start;
 }
 
-.session-pills small {
-  display: block;
-  font-size: var(--fs-kicker);
-  letter-spacing: 0.1em;
-  color: var(--mute);
-}
-
-.session-pills b {
-  display: block;
-  margin-top: 4px;
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
-
-.session-pills span {
-  display: block;
-  margin-top: 2px;
-  font-size: var(--fs-meta);
-  color: var(--ink-soft);
+.session-pills {
+  margin: 0;
+  padding: 0 0 14px;
 }
 
 .tape-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
   border-top: 1px solid var(--rule);
   padding-top: 12px;
 }
@@ -335,9 +334,9 @@ select.date-pick:disabled { opacity: 0.55; cursor: wait; }
 .kpi small {
   display: block;
   font-size: var(--fs-kicker);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--mute);
-  margin-bottom: 4px;
+  margin: 0 0 4px;
 }
 
 .kpi b {
@@ -346,13 +345,22 @@ select.date-pick:disabled { opacity: 0.55; cursor: wait; }
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.03em;
-  line-height: 1.1;
+  line-height: 1.15;
+  min-height: 1.15em;
+}
+
+.session-pills .kpi b {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .kpi span {
   display: block;
   margin-top: 3px;
   font-size: var(--fs-meta);
+  line-height: 1.35;
   color: var(--ink-soft);
 }
 
@@ -426,7 +434,7 @@ select.date-pick:disabled { opacity: 0.55; cursor: wait; }
 }
 
 .mover {
-  align-items: center;
+  align-items: start;
 }
 
 .mover-head {
@@ -436,6 +444,18 @@ select.date-pick:disabled { opacity: 0.55; cursor: wait; }
   letter-spacing: 0.08em;
   color: var(--mute);
   padding-bottom: 4px;
+}
+
+.mover-ret1,
+.mover-ret10,
+.mover-xs,
+.mover-vol,
+.mover-head > :nth-child(2),
+.mover-head > :nth-child(3),
+.mover-head > :nth-child(4),
+.mover-head > :nth-child(5) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .mover .sym {
@@ -559,8 +579,9 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 .review-item,
 .catalyst-item {
   display: grid;
-  grid-template-columns: 150px 1fr;
+  grid-template-columns: 148px 1fr;
   gap: 12px;
+  align-items: start;
   padding: 12px 0;
   border-top: 1px solid var(--rule);
 }
@@ -626,7 +647,8 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 }
 
 @media (max-width: 900px) {
-  .tape-grid { grid-template-columns: repeat(3, 1fr); }
+  .session-pills,
+  .tape-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (min-width: 641px) and (max-width: 1023px) {
@@ -643,7 +665,6 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
   .section h2 { font-size: 24px; }
   .mover,
   .mover-head { padding-top: 10px; padding-bottom: 10px; }
-  .kpi b { font-size: 24px; }
 }
 
 @media (max-width: 640px) {
@@ -676,6 +697,7 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
   }
   .wordmark {
     order: 1;
+    justify-content: flex-start;
     text-align: left;
     font-size: 22px;
     letter-spacing: 0.04em;

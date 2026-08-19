@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { DailyReport } from "@/lib/types";
 import { Briefing } from "./Briefing";
+import { DeskMark } from "./DeskMark";
 
 const themeListeners = new Set<() => void>();
 
@@ -123,6 +124,7 @@ export function ReportApp({
       <main className="desk">
         {updating ? (
           <div className="splash updating" role="status" aria-live="polite">
+            <DeskMark className="splash-mark" />
             <p className="eyebrow">晨报生成中</p>
             <h1>正在拉取完整收盘</h1>
             <p className="lede">美股、港股分别取最近一个已完成交易日。约 1–2 分钟，完成后会自动刷新。此刻不展示上一份表格，以免和未完成的数据混在一起。</p>
@@ -137,6 +139,7 @@ export function ReportApp({
           </>
         ) : (
           <div className="splash">
+            <DeskMark className="splash-mark" />
             <p className="eyebrow">尚无报告</p>
             <h1>晨间值守</h1>
             <p className="lede">等待工作日 09:00 定时任务，或在服务器运行 npm run generate。</p>

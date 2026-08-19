@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DeskMark } from "@/components/DeskMark";
 import { num, pct, price, ratio, signedClass } from "@/lib/format";
 import type { DailyReport, RowTag, SecurityRow } from "@/lib/types";
 
@@ -253,7 +254,10 @@ export function Briefing({ report }: { report: DailyReport }) {
           <div className="issue-date">{formatBeijingLongFromYmd(report.beijingDate)} · {weekday(report.beijingDate)}</div>
           <div className="issue-date-short">{formatBeijingShortFromYmd(report.beijingDate)} · {weekday(report.beijingDate)}</div>
         </div>
-        <div className="wordmark">晨间值守</div>
+        <div className="wordmark">
+          <DeskMark className="wordmark-mark" />
+          <span>晨间值守</span>
+        </div>
         <div className="issue-side">
           AM
           <div>完整收盘 · 非买卖建议</div>
@@ -282,17 +286,17 @@ export function Briefing({ report }: { report: DailyReport }) {
               </p>
             </div>
             <div className="session-pills">
-              <div>
+              <div className="kpi">
                 <small>美股收盘</small>
                 <b>{report.us.sessionDate ?? "暂无"}</b>
                 <span>{report.us.label}</span>
               </div>
-              <div>
+              <div className="kpi">
                 <small>港股收盘</small>
                 <b>{report.hk.sessionDate ?? "暂无"}</b>
                 <span>{report.hk.label}</span>
               </div>
-              <div>
+              <div className="kpi">
                 <small>本页生成</small>
                 <b>{report.generatedAt.slice(5, 16)}</b>
                 <span>北京时间</span>
