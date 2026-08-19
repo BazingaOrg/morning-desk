@@ -67,21 +67,23 @@ export function ReportApp({
   useEffect(() => {
     if (updating) return;
     const ids = ["lede", "movers", "us", "hk", "thesis", "catalysts"];
-    const nodes = ids
-      .map((id) => document.getElementById(id))
-      .filter((el): el is HTMLElement => Boolean(el));
-    if (!nodes.length) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const hit = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (hit?.target.id) setActive(hit.target.id);
-      },
-      { rootMargin: "-30% 0px -55% 0px", threshold: [0.1, 0.35, 0.6] },
-    );
-    for (const node of nodes) io.observe(node);
-    return () => io.disconnect();
+    function update() {
+      const line = window.innerHeight * 0.28;
+      let current = ids[0];
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (el.getBoundingClientRect().top <= line) current = id;
+      }
+      setActive(current);
+    }
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
   }, [report, updating]);
 
   function toggleTheme() {
@@ -114,9 +116,9 @@ export function ReportApp({
             onClick={toggleTheme}
             type="button"
             aria-pressed={theme === "dark"}
-            aria-label={theme === "dark" ? "切换到晨间模式" : "切换到夜盘模式"}
+            aria-label={theme === "dark" ? "切换到纸面" : "切换到夜读"}
           >
-            {theme === "dark" ? "晨盘" : "夜盘"}
+            {theme === "dark" ? "纸面" : "夜读"}
           </button>
         </div>
       </header>

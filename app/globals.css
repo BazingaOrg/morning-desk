@@ -66,6 +66,31 @@
 html {
   scroll-padding-top: var(--nav-h);
   scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink) 28%, var(--paper)) var(--paper);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--paper);
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink) 26%, var(--paper));
+  border: 2px solid var(--paper);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ink) 42%, var(--paper));
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--paper);
 }
 
 html,
@@ -418,7 +443,7 @@ select.date-pick:disabled { opacity: 0.55; cursor: wait; }
   margin: 0 0 10px;
   font-size: var(--fs-lede);
   line-height: 1.7;
-  max-width: 68ch;
+  max-width: 92ch;
 }
 
 .movers { display: flex; flex-direction: column; }
