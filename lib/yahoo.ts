@@ -8,7 +8,7 @@ import type {
   SplitEvent,
   UniverseItem,
 } from "./types";
-import { cacheHasCompleteSession, beijingDate, HK_TZ, US_TZ } from "./time";
+import { cacheHasCompleteSession, beijingDate, HK_TZ, lastCompleteSessionDate, US_TZ } from "./time";
 import { UNIVERSE, yahooSymbols } from "./universe";
 
 const CACHE_DIR = path.join(process.cwd(), "data", "cache");
@@ -211,6 +211,25 @@ function snapshot(
   };
 }
 
+function placeholderItem(yahoo: string): UniverseItem {
+  return {
+    id: yahoo,
+    display: yahoo,
+    name: yahoo,
+    yahoo,
+    market: yahoo.endsWith(".HK") ? "HK" : "US",
+    benchmark: "",
+    group: "基准",
+    notes: [],
+    identity: [],
+  };
+}
+
+function hasSessionBar(bars: { date: string }[], session: string | null): boolean {
+  if (!session) return bars.length > 0;
+  return bars.some((bar) => bar.date === session);
+}
+
 export async function fetchUniverseSeries(
   quotes: Map<string, QuoteSnapshot>,
 ): Promise<Map<string, SeriesBundle>> {
@@ -228,23 +247,23 @@ export async function fetchUniverseSeries(
 
   const bundles = new Map<string, SeriesBundle>();
 
-  for (const yahoo of allYahoo) {
-    const item =
-      items.find((i) => i.yahoo === yahoo) ??
-      ({
-        id: yahoo,
-        display: yahoo,
-        name: yahoo,
-        yahoo,
-        market: yahoo.endsWith(".HK") ? "HK" : "US",
-        benchmark: "",
-        group: "基准",
-        notes: [],
-        identity: [],
-      } satisfies UniverseItem);
+  function expectedSession(market: "US" | "HK"): string | null {
+    const ref = bundles.get(market === "HK" ? "2800.HK" : "VOO");
+    const tz = market === "HK" ? HK_TZ : US_TZ;
+    return lastCompleteSessionDate(ref?.bars.map((bar) => bar.date) ?? [], tz);
+  }
 
+  async function loadOne(yahoo: string, allowCache: boolean): Promise<void> {
+    const item = items.find((i) => i.yahoo === yahoo) ?? placeholderItem(yahoo);
     const cached = await readCache(yahoo);
-    if (cached && cacheHasCompleteSession(cached.bars, item.market === "HK" ? HK_TZ : US_TZ, cached.beijingDate)) {
+    const expected = expectedSession(item.market);
+    const cacheOk =
+      allowCache &&
+      cached &&
+      cacheHasCompleteSession(cached.bars, item.market === "HK" ? HK_TZ : US_TZ, cached.beijingDate) &&
+      hasSessionBar(cached.bars, expected);
+
+    if (cacheOk && cached) {
       const q = snapshot(
         yahoo,
         item.market,
@@ -260,7 +279,7 @@ export async function fetchUniverseSeries(
         splits: cached.splits,
         dividends: cached.dividends,
       });
-      continue;
+      return;
     }
 
     try {
@@ -279,16 +298,17 @@ export async function fetchUniverseSeries(
         bars[0]?.date,
       );
       quotes.set(yahoo, q);
-      const stored: CachedChart = {
-        fetchedAt: new Date().toISOString(),
-        beijingDate: beijingDate(),
-        quote: q,
-        bars,
-        splits,
-        dividends,
-      };
-      await writeCache(yahoo, stored);
       bundles.set(yahoo, { item, quote: q, bars, splits, dividends });
+      if (!expected || hasSessionBar(bars, expected)) {
+        await writeCache(yahoo, {
+          fetchedAt: new Date().toISOString(),
+          beijingDate: beijingDate(),
+          quote: q,
+          bars,
+          splits,
+          dividends,
+        });
+      }
     } catch (error) {
       if (cached?.bars.length) {
         quotes.set(yahoo, cached.quote);
@@ -311,6 +331,25 @@ export async function fetchUniverseSeries(
       }
     }
     await sleep(60);
+  }
+
+  for (const yahoo of allYahoo) {
+    await loadOne(yahoo, true);
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const stale = allYahoo.filter((yahoo) => {
+      const bundle = bundles.get(yahoo);
+      const market = bundle?.item.market ?? (yahoo.endsWith(".HK") ? "HK" : "US");
+      const expected = expectedSession(market);
+      if (!expected) return false;
+      return !hasSessionBar(bundle?.bars ?? [], expected);
+    });
+    if (!stale.length) break;
+    await sleep(1500);
+    for (const yahoo of stale) {
+      await loadOne(yahoo, false);
+    }
   }
 
   return bundles;

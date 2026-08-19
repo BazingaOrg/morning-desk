@@ -26,6 +26,12 @@ export function completeBars(bars: DailyBar[], lastDate: string): DailyBar[] {
   return bars.filter((b) => b.date <= lastDate && b.close !== null);
 }
 
+export function sessionBars(bars: DailyBar[], lastDate: string): DailyBar[] {
+  const series = completeBars(bars, lastDate);
+  if (!series.length || series[series.length - 1].date !== lastDate) return [];
+  return series;
+}
+
 function closeOf(bar: DailyBar, adjusted: boolean): number | null {
   if (adjusted) return bar.adjClose ?? bar.close;
   return bar.close;
@@ -37,7 +43,7 @@ export function periodReturn(
   sessions: number,
   adjusted: boolean,
 ): number | null {
-  const series = completeBars(bars, lastDate);
+  const series = sessionBars(bars, lastDate);
   if (series.length < sessions + 1) return null;
   const last = closeOf(series[series.length - 1], adjusted);
   const prev = closeOf(series[series.length - 1 - sessions], adjusted);
@@ -50,7 +56,7 @@ export function ytdReturn(
   lastDate: string,
   adjusted: boolean,
 ): { ytd: number | null; sinceListing: number | null; label: "YTD" | "上市以来" } {
-  const series = completeBars(bars, lastDate);
+  const series = sessionBars(bars, lastDate);
   if (series.length < 2) {
     return { ytd: null, sinceListing: null, label: "YTD" };
   }
@@ -72,7 +78,7 @@ export function ytdReturn(
 }
 
 export function volumeRatio(bars: DailyBar[], lastDate: string): number | null {
-  const series = completeBars(bars, lastDate).filter((b) => b.volume !== null);
+  const series = sessionBars(bars, lastDate).filter((b) => b.volume !== null);
   if (series.length < 21) return null;
   const last = series[series.length - 1].volume;
   const prior = series.slice(-21, -1);
@@ -86,7 +92,7 @@ export function distTo52WHigh(
   lastDate: string,
   adjusted: boolean,
 ): number | null {
-  const series = completeBars(bars, lastDate);
+  const series = sessionBars(bars, lastDate);
   if (!series.length) return null;
   const window = series.slice(-252);
   const last = closeOf(window[window.length - 1], adjusted);
@@ -243,7 +249,7 @@ export function buildRow(
 
   const close = lastDate
     ? closeOf(
-        completeBars(bundle.bars, lastDate).at(-1) ?? { date: "", close: null, adjClose: null, open: null, high: null, low: null, volume: null },
+        sessionBars(bundle.bars, lastDate).at(-1) ?? { date: "", close: null, adjClose: null, open: null, high: null, low: null, volume: null },
         usedAdjusted,
       )
     : null;
