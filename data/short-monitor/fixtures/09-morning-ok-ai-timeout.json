@@ -1,0 +1,27 @@
+{
+  "id": "09-morning-ok-ai-timeout",
+  "title": "晨报成功而 DeepSeek 超时",
+  "asserts": [
+    "morning published is true",
+    "short-monitor degraded independently",
+    "morning success status must not be rolled back",
+    "short monitor must not reuse prior-day conclusion as today's conclusion",
+    "degradationReason records DeepSeek timeout or equivalent",
+    "shared link is marketSnapshotId only"
+  ],
+  "session": {
+    "beijingDate": "2026-08-19",
+    "usSession": {
+      "date": "2026-08-18",
+      "kind": "regular"
+    },
+    "freshness": "new",
+    "overnight_snapshot": true,
+    "marketSnapshotId": "ms-2026-08-18-regular",
+    "morningPublished": true,
+    "shortMonitorStatus": "degraded",
+    "degradationReason": "DeepSeek timeout"
+  },
+  "position": "FLAT",
+  "notes": "Pipeline A published; Pipeline B fails closed with explicit AI degradation. Existing morning briefing remains available."
+}

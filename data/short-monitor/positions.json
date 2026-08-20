@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "updatedAt": null,
+  "positions": [
+    { "asset": "SPCX", "status": "FLAT" },
+    { "asset": "SNDK", "status": "FLAT" },
+    { "asset": "NASDAQ", "status": "FLAT" },
+    { "asset": "GOLD", "status": "FLAT" }
+  ]
+}

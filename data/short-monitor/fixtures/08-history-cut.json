@@ -1,0 +1,51 @@
+{
+  "id": "08-history-cut",
+  "title": "SPCX/SNDK 历史切断",
+  "asserts": [
+    "SPCX bars before 2026-06-12 are dropped",
+    "SNDK bars before 2025-02-24 are dropped",
+    "expectedRemainingSpcxDates match post-cut sample",
+    "expectedRemainingSndkDates match post-cut sample",
+    "insufficient sample yields N/A for 20/50/200DMA and ATR",
+    "no splice of prior ticker, predecessor, or ETF history"
+  ],
+  "session": {
+    "beijingDate": "2026-08-19",
+    "usSession": {
+      "date": "2026-08-18",
+      "kind": "regular"
+    },
+    "freshness": "new",
+    "overnight_snapshot": true,
+    "marketSnapshotId": "ms-2026-08-18-regular",
+    "morningPublished": true,
+    "shortMonitorStatus": "ok",
+    "degradationReason": null
+  },
+  "position": "FLAT",
+  "notes": "historyStartDate SPCX=2026-06-12, SNDK=2025-02-24. Sample bars below are acceptance skeletons for the cutter.",
+  "sampleBars": {
+    "SPCX": {
+      "historyStartDate": "2026-06-12",
+      "inputDates": [
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-13",
+        "2026-06-16"
+      ],
+      "expectedRemainingDates": ["2026-06-12", "2026-06-13", "2026-06-16"]
+    },
+    "SNDK": {
+      "historyStartDate": "2025-02-24",
+      "inputDates": [
+        "2025-02-20",
+        "2025-02-21",
+        "2025-02-24",
+        "2025-02-25",
+        "2025-02-26"
+      ],
+      "expectedRemainingDates": ["2025-02-24", "2025-02-25", "2025-02-26"]
+    }
+  }
+}

@@ -1,0 +1,1 @@
+These nine JSON files are acceptance skeletons for Short Monitor Batch A Step 0: session kind, position/Action legality, history cuts, and morning-vs-AI isolation. Numeric score replay, veto math, and full DecisionValidator assertions land in Batch B.

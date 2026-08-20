@@ -1,0 +1,27 @@
+{
+  "id": "03-early-close",
+  "title": "提前收市",
+  "asserts": [
+    "usSession.kind is early-close",
+    "freshness is early-close",
+    "volume and liquidity signal weights are reduced",
+    "price and volume still use the early-close regular session bars only",
+    "overnight_snapshot is true",
+    "no intraday or premarket rescoring"
+  ],
+  "session": {
+    "beijingDate": "2026-11-30",
+    "usSession": {
+      "date": "2026-11-27",
+      "kind": "early-close"
+    },
+    "freshness": "early-close",
+    "overnight_snapshot": true,
+    "marketSnapshotId": "ms-2026-11-27-early-close",
+    "morningPublished": true,
+    "shortMonitorStatus": "ok",
+    "degradationReason": null
+  },
+  "position": "FLAT",
+  "notes": "Early-close calendar flag must flow into volume/liquidity weight; still an overnight snapshot of that shortened regular session."
+}

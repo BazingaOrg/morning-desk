@@ -1,0 +1,27 @@
+{
+  "id": "07-flat-rejects-reduce",
+  "title": "FLAT 时拒绝 REDUCE",
+  "asserts": [
+    "position is FLAT",
+    "FLAT must reject REDUCE",
+    "FLAT must reject HOLD and EXIT",
+    "allowed Actions for FLAT are only WAIT, PREPARE, ENTER",
+    "narrative or stripped model text implying REDUCE must not become Decision Action",
+    "code Decision Validator is authoritative"
+  ],
+  "session": {
+    "beijingDate": "2026-08-19",
+    "usSession": {
+      "date": "2026-08-18",
+      "kind": "regular"
+    },
+    "freshness": "new",
+    "overnight_snapshot": true,
+    "marketSnapshotId": "ms-2026-08-18-regular",
+    "morningPublished": true,
+    "shortMonitorStatus": "ok",
+    "degradationReason": null
+  },
+  "position": "FLAT",
+  "notes": "Even if model narrative suggests reduce/trim, schema strips action fields and validator rejects REDUCE under FLAT."
+}

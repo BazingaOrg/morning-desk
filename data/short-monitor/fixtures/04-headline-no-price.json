@@ -1,0 +1,26 @@
+{
+  "id": "04-headline-no-price",
+  "title": "单一利空但无价格确认",
+  "asserts": [
+    "single headline or single catalyst alone must not produce ENTER",
+    "Price Confirmation remains NONE or insufficient",
+    "state must not reach TRIGGERED",
+    "Action stays WAIT or PREPARE",
+    "valuation/rally/war/unlock/research/single-technical alone still blocked"
+  ],
+  "session": {
+    "beijingDate": "2026-08-19",
+    "usSession": {
+      "date": "2026-08-18",
+      "kind": "regular"
+    },
+    "freshness": "new",
+    "overnight_snapshot": true,
+    "marketSnapshotId": "ms-2026-08-18-regular",
+    "morningPublished": true,
+    "shortMonitorStatus": "ok",
+    "degradationReason": null
+  },
+  "position": "FLAT",
+  "notes": "Skeleton for Batch B: medium catalyst narrative with no breakdown/ATR confirmation; code vetoes TRIGGERED/ENTER."
+}

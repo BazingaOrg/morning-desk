@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "id": "SSPC",
+      "display": "SSPC",
+      "yahoo": "SSPC",
+      "asset": "SPCX",
+      "leverage": -2,
+      "reset": "daily",
+      "issuer": "Leverage Shares",
+      "underlyingId": "SPCX",
+      "expenseNote": "0.75% expense ratio",
+      "officialUrl": "https://leverageshares.com/us/etfs/leverage-shares-2x-short-spcx-daily-etf/",
+      "name": "Leverage Shares 2x Short SPCX Daily ETF"
+    },
+    {
+      "id": "SNDQ",
+      "display": "SNDQ",
+      "yahoo": "SNDQ",
+      "asset": "SNDK",
+      "leverage": -2,
+      "reset": "daily",
+      "issuer": "Tradr",
+      "underlyingId": "SNDK",
+      "expenseNote": "1.49% expense ratio",
+      "officialUrl": "https://www.tradretfs.com/sndq",
+      "name": "Tradr 2X Short SNDK Daily ETF",
+      "notes": ["verify issuer page before live use"]
+    },
+    {
+      "id": "QID",
+      "display": "QID",
+      "yahoo": "QID",
+      "asset": "NASDAQ",
+      "leverage": -2,
+      "reset": "daily",
+      "issuer": "ProShares",
+      "underlyingId": "QQQ",
+      "expenseNote": "0.95% expense ratio",
+      "officialUrl": "https://www.proshares.com/our-etfs/leveraged-and-inverse/qid",
+      "name": "ProShares UltraShort QQQ"
+    },
+    {
+      "id": "PSQ",
+      "display": "PSQ",
+      "yahoo": "PSQ",
+      "asset": "NASDAQ",
+      "leverage": -1,
+      "reset": "daily",
+      "issuer": "ProShares",
+      "underlyingId": "QQQ",
+      "expenseNote": "0.95% expense ratio",
+      "officialUrl": "https://www.proshares.com/our-etfs/leveraged-and-inverse/psq",
+      "name": "ProShares Short QQQ"
+    },
+    {
+      "id": "GLL",
+      "display": "GLL",
+      "yahoo": "GLL",
+      "asset": "GOLD",
+      "leverage": -2,
+      "reset": "daily",
+      "issuer": "ProShares",
+      "underlyingId": "GLD",
+      "expenseNote": "0.95% expense ratio",
+      "officialUrl": "https://www.proshares.com/our-etfs/leveraged-and-inverse/gll",
+      "name": "ProShares UltraShort Gold"
+    }
+  ]
+}
