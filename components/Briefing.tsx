@@ -238,7 +238,13 @@ function UniverseTable({
   );
 }
 
-export function Briefing({ report }: { report: DailyReport }) {
+export function Briefing({
+  report,
+  staleStats = false,
+}: {
+  report: DailyReport;
+  staleStats?: boolean;
+}) {
   const stat = kpis(report);
   const allRows = [...report.usRows, ...report.hkRows];
   const showThesis = hasThesis(allRows);
@@ -264,6 +270,9 @@ export function Briefing({ report }: { report: DailyReport }) {
         </div>
       </header>
       <p className="issue-sub">The Morning Desk · 判断市场是否正在重新定价</p>
+      {staleStats ? (
+        <p className="footnote stale-note">名单已改，判断与涨跌家数待下次生成。</p>
+      ) : null}
 
       <div className="brief-lead">
         <div className="tape-block">

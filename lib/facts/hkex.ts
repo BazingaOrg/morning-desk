@@ -47,6 +47,42 @@ function parseTitleDate(title: string): string | undefined {
   return undefined;
 }
 
+export type HkexPrefixHit = {
+  code: string;
+  name: string;
+  stockId?: number;
+};
+
+export async function searchHkexPrefix(query: string): Promise<HkexPrefixHit[]> {
+  const name = query.trim();
+  if (!name) return [];
+  const raw = await getText(
+    `https://www1.hkexnews.hk/search/prefix.do?callback=callback&lang=ZH&type=A&name=${encodeURIComponent(name)}&market=SEHK`,
+    { headers: { "User-Agent": "Mozilla/5.0", Accept: "*/*" } },
+    10000,
+  );
+  const m = raw.text.match(/callback\((\{[\s\S]*\})\)/);
+  if (!m) return [];
+  try {
+    const json = JSON.parse(m[1]) as {
+      stockInfo?: Array<{ stockId?: number; code?: string; name?: string }>;
+    };
+    const out: HkexPrefixHit[] = [];
+    for (const row of json.stockInfo ?? []) {
+      const code = String(row.code ?? "").padStart(5, "0");
+      if (!/^\d{5}$/.test(code)) continue;
+      out.push({
+        code,
+        name: String(row.name ?? "").trim() || code,
+        stockId: row.stockId,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export async function loadHkexIds(items: UniverseItem[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   let stored: Record<string, string> = {};

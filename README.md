@@ -18,40 +18,25 @@ npm run dev        # http://localhost:3000
 
 必须跑在**有持久磁盘**的机器上（本机、NAS、阿里云均可）。生成结果写在 `data/`，无盘环境（如默认 Vercel）留不住。
 
-时间固定 `Asia/Shanghai` 09:00，工作日，不随美国夏令时改点。
+时间固定 `Asia/Shanghai` 09:00，工作日。由 Compose 里的 `scheduler` 服务触发：先出晨报，再跑空头监控。不要再装宿主机 crontab，也不要和 scheduler 同时跑 `npm run generate`。
 
-**Linux / 阿里云（推荐，与仓库 `deploy/crontab` 一致）：**
-
-```bash
-# 项目放在 /opt/morning-desk，且已 docker compose up -d
-sudo cp deploy/crontab /etc/cron.d/morning-desk
-sudo chmod 644 /etc/cron.d/morning-desk
-```
-
-不用 Docker 时，crontab 改为：
-
-```cron
-0 9 * * 1-5 TZ=Asia/Shanghai cd /opt/morning-desk && /usr/bin/npm run generate >> /var/log/morning-desk-generate.log 2>&1
-```
-
-**macOS（本机常开）：**
+若这台机器以前装过仓库里的 cron，上线前卸掉：
 
 ```bash
-crontab -e
-# 写入：
-0 9 * * 1-5 export TZ=Asia/Shanghai; cd /path/to/morning-desk && /usr/local/bin/npm run generate >> /tmp/morning-desk.log 2>&1
+sudo rm -f /etc/cron.d/morning-desk
 ```
 
-机器休眠则不会触发。需要 7×24 就放到云服务器。
+需要 7×24 就把站点放到云服务器。机器休眠则 scheduler 不会触发。
 
 ## 部署站点
 
-站点与定时任务放同一台有盘机器。Cloudflare 只做 DNS。
+站点与 scheduler 放同一台有盘机器。Cloudflare 只做 DNS。写入名单前在环境里设置 `DESK_EDIT_TOKEN`。
 
 ```bash
 cd /opt/morning-desk
+# 若曾安装宿主机 cron：
+sudo rm -f /etc/cron.d/morning-desk
 docker compose up -d --build
-docker compose exec app npm run generate
 ```
 
 反代见 `deploy/nginx.conf`。Cloudflare：`A` 记录指到服务器 IP，SSL 用 **Full (strict)**（机器上已配置 HTTPS 时）。安全组放行 80、443。

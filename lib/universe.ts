@@ -30,7 +30,7 @@ export const BENCHMARKS = [
   "GLD",
 ] as const;
 
-export const UNIVERSE: UniverseItem[] = [
+export const SEED_UNIVERSE: UniverseItem[] = [
   {
     id: "VOO",
     display: "VOO",
@@ -618,11 +618,9 @@ export const UNIVERSE: UniverseItem[] = [
   },
 ];
 
-export const UNIVERSE_BY_ID = new Map(UNIVERSE.map((item) => [item.id, item]));
-
-export function yahooSymbols(): string[] {
+export function yahooSymbols(items: UniverseItem[]): string[] {
   const set = new Set<string>();
-  for (const item of UNIVERSE) {
+  for (const item of items) {
     set.add(item.yahoo);
     set.add(item.benchmark);
     if (item.underlying) set.add(item.underlying);

@@ -9,7 +9,7 @@ import type {
   UniverseItem,
 } from "./types";
 import { cacheHasCompleteSession, beijingDate, HK_TZ, lastCompleteSessionDate, US_TZ } from "./time";
-import { UNIVERSE, yahooSymbols } from "./universe";
+import { yahooSymbols } from "./universe";
 
 const CACHE_DIR = path.join(process.cwd(), "data", "cache");
 const SINA_K = "https://stock.finance.sina.com.cn/usstock/api/json_v2.php/US_MinKService.getDailyK";
@@ -176,6 +176,17 @@ async function fetchQuoteMap(yahoos: string[]): Promise<{ quotes: Map<string, Tx
   return { quotes, flags: flagsMatch?.join("|") ?? "" };
 }
 
+export async function probeQuote(yahoo: string): Promise<{ name: string } | null> {
+  try {
+    const { quotes } = await fetchQuoteMap([yahoo]);
+    const name = quotes.get(tencentCode(yahoo))?.name?.trim();
+    if (!name) return null;
+    return { name };
+  } catch {
+    return null;
+  }
+}
+
 function parseLooseTime(value?: string): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -232,9 +243,9 @@ function hasSessionBar(bars: { date: string }[], session: string | null): boolea
 
 export async function fetchUniverseSeries(
   quotes: Map<string, QuoteSnapshot>,
+  items: UniverseItem[],
 ): Promise<Map<string, SeriesBundle>> {
-  const items: UniverseItem[] = UNIVERSE;
-  const extra = yahooSymbols().filter((s) => !items.some((i) => i.yahoo === s));
+  const extra = yahooSymbols(items).filter((s) => !items.some((i) => i.yahoo === s));
   const allYahoo = [...new Set(["VOO", "2800.HK", ...items.map((i) => i.yahoo), ...extra])];
 
   let txQuotes = new Map<string, TxQuote>();
@@ -318,6 +329,7 @@ export async function fetchUniverseSeries(
           bars: cached.bars,
           splits: cached.splits,
           dividends: cached.dividends,
+          stale: true,
         });
       } else {
         bundles.set(yahoo, {

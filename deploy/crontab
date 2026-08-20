@@ -1,4 +1,5 @@
-SHELL=/bin/bash
-TZ=Asia/Shanghai
-
-0 9 * * 1-5 root cd /opt/morning-desk && /usr/bin/docker compose exec -T app npm run generate >> /var/log/morning-desk-generate.log 2>&1
+# Scheduling moved to the Compose `scheduler` service (`npm run scheduler`).
+# Do not enable a host cron that also runs `npm run generate` — dual runners race.
+#
+# Disabled example (kept for reference only):
+# 0 9 * * 1-5 root cd /opt/morning-desk && /usr/bin/docker compose exec -T app npm run generate >> /var/log/morning-desk-generate.log 2>&1

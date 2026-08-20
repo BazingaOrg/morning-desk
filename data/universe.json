@@ -1,0 +1,725 @@
+{
+  "items": [
+    {
+      "id": "VOO",
+      "display": "VOO",
+      "name": "Vanguard S&P 500 ETF",
+      "yahoo": "VOO",
+      "market": "US",
+      "benchmark": "SPY",
+      "group": "美股基准",
+      "notes": [],
+      "identity": [
+        "Vanguard",
+        "500",
+        "标普"
+      ]
+    },
+    {
+      "id": "QQQ",
+      "display": "QQQ",
+      "name": "Invesco QQQ Trust",
+      "yahoo": "QQQ",
+      "market": "US",
+      "benchmark": "VOO",
+      "group": "美股基准",
+      "notes": [],
+      "identity": [
+        "QQQ",
+        "Invesco"
+      ]
+    },
+    {
+      "id": "INTU",
+      "display": "INTU",
+      "name": "Intuit",
+      "yahoo": "INTU",
+      "market": "US",
+      "benchmark": "IGV",
+      "group": "软件",
+      "notes": [],
+      "identity": [
+        "Intuit"
+      ]
+    },
+    {
+      "id": "OKLO",
+      "display": "OKLO",
+      "name": "Oklo",
+      "yahoo": "OKLO",
+      "market": "US",
+      "benchmark": "URA",
+      "group": "核能",
+      "notes": [],
+      "identity": [
+        "Oklo"
+      ]
+    },
+    {
+      "id": "CRM",
+      "display": "CRM",
+      "name": "Salesforce",
+      "yahoo": "CRM",
+      "market": "US",
+      "benchmark": "IGV",
+      "group": "软件",
+      "notes": [],
+      "identity": [
+        "Salesforce"
+      ]
+    },
+    {
+      "id": "TSLA",
+      "display": "TSLA",
+      "name": "Tesla",
+      "yahoo": "TSLA",
+      "market": "US",
+      "benchmark": "XLY",
+      "group": "消费",
+      "notes": [],
+      "identity": [
+        "Tesla"
+      ]
+    },
+    {
+      "id": "PDD",
+      "display": "PDD",
+      "name": "PDD Holdings",
+      "yahoo": "PDD",
+      "market": "US",
+      "benchmark": "KWEB",
+      "group": "中概",
+      "notes": [],
+      "identity": [
+        "PDD",
+        "Pinduoduo"
+      ]
+    },
+    {
+      "id": "AVAV",
+      "display": "AVAV",
+      "name": "AeroVironment",
+      "yahoo": "AVAV",
+      "market": "US",
+      "benchmark": "ITA",
+      "group": "国防航空",
+      "notes": [],
+      "identity": [
+        "AeroVironment"
+      ]
+    },
+    {
+      "id": "SNK",
+      "display": "SNK",
+      "name": "GraniteShares 2x Short SpaceX Daily ETF",
+      "yahoo": "SNK",
+      "market": "US",
+      "benchmark": "SPCX",
+      "group": "反向产品",
+      "notes": [
+        "目标为 SPCX 单日收益的 -2 倍，不得把多日累计解释成标的累计的简单 -2 倍。"
+      ],
+      "identity": [
+        "GraniteShares",
+        "Short",
+        "SpaceX"
+      ],
+      "inverse": "spacex-short-2x",
+      "underlying": "SPCX"
+    },
+    {
+      "id": "HOOD",
+      "display": "HOOD",
+      "name": "Robinhood",
+      "yahoo": "HOOD",
+      "market": "US",
+      "benchmark": "FINX",
+      "group": "金融科技",
+      "notes": [],
+      "identity": [
+        "Robinhood"
+      ]
+    },
+    {
+      "id": "GLL",
+      "display": "GLL",
+      "name": "ProShares UltraShort Gold",
+      "yahoo": "GLL",
+      "market": "US",
+      "benchmark": "GLD",
+      "group": "反向产品",
+      "notes": [
+        "目标为黄金指数单日收益的 -2 倍；多日收益存在路径依赖与波动损耗。"
+      ],
+      "identity": [
+        "UltraShort",
+        "Gold"
+      ],
+      "inverse": "gold-short-2x",
+      "underlying": "GLD"
+    },
+    {
+      "id": "NVO",
+      "display": "NVO",
+      "name": "Novo Nordisk",
+      "yahoo": "NVO",
+      "market": "US",
+      "benchmark": "XLV",
+      "group": "医疗",
+      "notes": [],
+      "identity": [
+        "Novo"
+      ]
+    },
+    {
+      "id": "CRCL",
+      "display": "CRCL",
+      "name": "Circle",
+      "yahoo": "CRCL",
+      "market": "US",
+      "benchmark": "FINX",
+      "group": "金融科技",
+      "notes": [],
+      "identity": [
+        "Circle"
+      ]
+    },
+    {
+      "id": "SHOP",
+      "display": "SHOP",
+      "name": "Shopify",
+      "yahoo": "SHOP",
+      "market": "US",
+      "benchmark": "XLY",
+      "group": "消费",
+      "notes": [],
+      "identity": [
+        "Shopify"
+      ]
+    },
+    {
+      "id": "PLTR",
+      "display": "PLTR",
+      "name": "Palantir",
+      "yahoo": "PLTR",
+      "market": "US",
+      "benchmark": "IGV",
+      "group": "软件",
+      "notes": [],
+      "identity": [
+        "Palantir"
+      ]
+    },
+    {
+      "id": "BRK.B",
+      "display": "BRK.B",
+      "name": "Berkshire Hathaway B",
+      "yahoo": "BRK-B",
+      "market": "US",
+      "benchmark": "VOO",
+      "group": "综合",
+      "notes": [
+        "行情源代码为 BRK-B。"
+      ],
+      "identity": [
+        "Berkshire"
+      ]
+    },
+    {
+      "id": "MSFT",
+      "display": "MSFT",
+      "name": "Microsoft",
+      "yahoo": "MSFT",
+      "market": "US",
+      "benchmark": "VGT",
+      "group": "科技巨头",
+      "notes": [],
+      "identity": [
+        "Microsoft"
+      ]
+    },
+    {
+      "id": "SPCX",
+      "display": "SPCX",
+      "name": "SpaceX",
+      "yahoo": "SPCX",
+      "market": "US",
+      "benchmark": "ITA",
+      "group": "国防航空",
+      "notes": [
+        "当前按 SpaceX 普通股处理，不得误认为历史上使用 SPCX、后改为 SPCK 的 SPAC ETF。"
+      ],
+      "identity": [
+        "SpaceX"
+      ]
+    },
+    {
+      "id": "GOOG",
+      "display": "GOOG",
+      "name": "Alphabet",
+      "yahoo": "GOOG",
+      "market": "US",
+      "benchmark": "QQQ",
+      "group": "科技巨头",
+      "notes": [],
+      "identity": [
+        "Alphabet",
+        "Google"
+      ]
+    },
+    {
+      "id": "AAPL",
+      "display": "AAPL",
+      "name": "Apple",
+      "yahoo": "AAPL",
+      "market": "US",
+      "benchmark": "VGT",
+      "group": "科技巨头",
+      "notes": [],
+      "identity": [
+        "Apple"
+      ]
+    },
+    {
+      "id": "MP",
+      "display": "MP",
+      "name": "MP Materials",
+      "yahoo": "MP",
+      "market": "US",
+      "benchmark": "REMX",
+      "group": "资源",
+      "notes": [],
+      "identity": [
+        "MP Materials"
+      ]
+    },
+    {
+      "id": "AMZN",
+      "display": "AMZN",
+      "name": "Amazon",
+      "yahoo": "AMZN",
+      "market": "US",
+      "benchmark": "XLY",
+      "group": "消费",
+      "notes": [],
+      "identity": [
+        "Amazon"
+      ]
+    },
+    {
+      "id": "XMHQ",
+      "display": "XMHQ",
+      "name": "Invesco S&P MidCap Quality ETF",
+      "yahoo": "XMHQ",
+      "market": "US",
+      "benchmark": "IJH",
+      "group": "美股基准",
+      "notes": [],
+      "identity": [
+        "MidCap",
+        "Quality"
+      ]
+    },
+    {
+      "id": "RKLB",
+      "display": "RKLB",
+      "name": "Rocket Lab",
+      "yahoo": "RKLB",
+      "market": "US",
+      "benchmark": "ARKX",
+      "group": "国防航空",
+      "notes": [],
+      "identity": [
+        "Rocket Lab"
+      ]
+    },
+    {
+      "id": "NVDA",
+      "display": "NVDA",
+      "name": "NVIDIA",
+      "yahoo": "NVDA",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "NVIDIA"
+      ]
+    },
+    {
+      "id": "UNH",
+      "display": "UNH",
+      "name": "UnitedHealth",
+      "yahoo": "UNH",
+      "market": "US",
+      "benchmark": "XLV",
+      "group": "医疗",
+      "notes": [],
+      "identity": [
+        "UnitedHealth"
+      ]
+    },
+    {
+      "id": "LMT",
+      "display": "LMT",
+      "name": "Lockheed Martin",
+      "yahoo": "LMT",
+      "market": "US",
+      "benchmark": "ITA",
+      "group": "国防航空",
+      "notes": [],
+      "identity": [
+        "Lockheed"
+      ]
+    },
+    {
+      "id": "BG",
+      "display": "BG",
+      "name": "Bunge",
+      "yahoo": "BG",
+      "market": "US",
+      "benchmark": "MOO",
+      "group": "农业",
+      "notes": [],
+      "identity": [
+        "Bunge"
+      ]
+    },
+    {
+      "id": "VGT",
+      "display": "VGT",
+      "name": "Vanguard Information Technology ETF",
+      "yahoo": "VGT",
+      "market": "US",
+      "benchmark": "VOO",
+      "group": "美股基准",
+      "notes": [],
+      "identity": [
+        "Vanguard",
+        "Information Technology"
+      ]
+    },
+    {
+      "id": "CBRS",
+      "display": "CBRS",
+      "name": "Cerebras Systems",
+      "yahoo": "CBRS",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [
+        "当前按 Cerebras Systems 普通股处理。"
+      ],
+      "identity": [
+        "Cerebras"
+      ]
+    },
+    {
+      "id": "TSM",
+      "display": "TSM",
+      "name": "TSMC",
+      "yahoo": "TSM",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "Taiwan Semiconductor",
+        "TSMC"
+      ]
+    },
+    {
+      "id": "CRWV",
+      "display": "CRWV",
+      "name": "CoreWeave",
+      "yahoo": "CRWV",
+      "market": "US",
+      "benchmark": "SKYY",
+      "group": "云与算力",
+      "notes": [],
+      "identity": [
+        "CoreWeave"
+      ]
+    },
+    {
+      "id": "NET",
+      "display": "NET",
+      "name": "Cloudflare",
+      "yahoo": "NET",
+      "market": "US",
+      "benchmark": "SKYY",
+      "group": "云与算力",
+      "notes": [],
+      "identity": [
+        "Cloudflare"
+      ]
+    },
+    {
+      "id": "SMH",
+      "display": "SMH",
+      "name": "VanEck Semiconductor ETF",
+      "yahoo": "SMH",
+      "market": "US",
+      "benchmark": "VOO",
+      "group": "美股基准",
+      "notes": [],
+      "identity": [
+        "Semiconductor"
+      ]
+    },
+    {
+      "id": "NOK",
+      "display": "NOK",
+      "name": "Nokia",
+      "yahoo": "NOK",
+      "market": "US",
+      "benchmark": "IXN",
+      "group": "通信设备",
+      "notes": [],
+      "identity": [
+        "Nokia"
+      ]
+    },
+    {
+      "id": "CCXI",
+      "display": "CCXI",
+      "name": "Churchill Capital Corp XI",
+      "yahoo": "CCXI",
+      "market": "US",
+      "benchmark": "VOO",
+      "group": "SPAC",
+      "notes": [
+        "行情显示为 Churchill Capital Corp XI；按与 Agility Robotics 拟议交易相关的 SPAC 处理，完成前不得当作成熟经营公司横向估值。普通指数超额解释力有限。"
+      ],
+      "identity": [
+        "Churchill"
+      ],
+      "limitedExcess": true
+    },
+    {
+      "id": "VRT",
+      "display": "VRT",
+      "name": "Vertiv",
+      "yahoo": "VRT",
+      "market": "US",
+      "benchmark": "XLI",
+      "group": "工业",
+      "notes": [],
+      "identity": [
+        "Vertiv"
+      ]
+    },
+    {
+      "id": "EWY",
+      "display": "EWY",
+      "name": "iShares MSCI South Korea ETF",
+      "yahoo": "EWY",
+      "market": "US",
+      "benchmark": "VWO",
+      "group": "区域",
+      "notes": [],
+      "identity": [
+        "Korea"
+      ]
+    },
+    {
+      "id": "NVTS",
+      "display": "NVTS",
+      "name": "Navitas Semiconductor",
+      "yahoo": "NVTS",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "Navitas"
+      ]
+    },
+    {
+      "id": "INTC",
+      "display": "INTC",
+      "name": "Intel",
+      "yahoo": "INTC",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "Intel"
+      ]
+    },
+    {
+      "id": "WDC",
+      "display": "WDC",
+      "name": "Western Digital",
+      "yahoo": "WDC",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "Western Digital"
+      ]
+    },
+    {
+      "id": "NBIS",
+      "display": "NBIS",
+      "name": "Nebius",
+      "yahoo": "NBIS",
+      "market": "US",
+      "benchmark": "SKYY",
+      "group": "云与算力",
+      "notes": [],
+      "identity": [
+        "Nebius"
+      ]
+    },
+    {
+      "id": "MU",
+      "display": "MU",
+      "name": "Micron",
+      "yahoo": "MU",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "Micron"
+      ]
+    },
+    {
+      "id": "AAOI",
+      "display": "AAOI",
+      "name": "Applied Optoelectronics",
+      "yahoo": "AAOI",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "Applied Optoelectronics"
+      ]
+    },
+    {
+      "id": "AXTI",
+      "display": "AXTI",
+      "name": "AXT Inc",
+      "yahoo": "AXTI",
+      "market": "US",
+      "benchmark": "SMH",
+      "group": "半导体",
+      "notes": [],
+      "identity": [
+        "AXT"
+      ]
+    },
+    {
+      "id": "02714",
+      "display": "02714.HK",
+      "name": "牧原股份",
+      "yahoo": "2714.HK",
+      "market": "HK",
+      "benchmark": "2800.HK",
+      "group": "港股农业",
+      "notes": [
+        "只跟踪 H 股，与 002714.SZ 分开。"
+      ],
+      "identity": [
+        "牧原",
+        "MUYUAN",
+        "Muyuan"
+      ]
+    },
+    {
+      "id": "01060",
+      "display": "01060.HK",
+      "name": "大麦娱乐",
+      "yahoo": "1060.HK",
+      "market": "HK",
+      "benchmark": "2800.HK",
+      "group": "港股传媒",
+      "notes": [],
+      "identity": [
+        "大麦",
+        "DAMAI",
+        "Damai"
+      ]
+    },
+    {
+      "id": "01024",
+      "display": "01024.HK",
+      "name": "快手-W",
+      "yahoo": "1024.HK",
+      "market": "HK",
+      "benchmark": "3033.HK",
+      "group": "港股互联网",
+      "notes": [],
+      "identity": [
+        "快手",
+        "KUAISHOU",
+        "Kuaishou"
+      ]
+    },
+    {
+      "id": "09961",
+      "display": "09961.HK",
+      "name": "携程集团-S",
+      "yahoo": "9961.HK",
+      "market": "HK",
+      "benchmark": "3033.HK",
+      "group": "港股互联网",
+      "notes": [],
+      "identity": [
+        "携程",
+        "TRIP.COM",
+        "Trip.com"
+      ]
+    },
+    {
+      "id": "01810",
+      "display": "01810.HK",
+      "name": "小米集团-W",
+      "yahoo": "1810.HK",
+      "market": "HK",
+      "benchmark": "3033.HK",
+      "group": "港股互联网",
+      "notes": [],
+      "identity": [
+        "小米",
+        "XIAOMI",
+        "Xiaomi"
+      ]
+    },
+    {
+      "id": "09992",
+      "display": "09992.HK",
+      "name": "泡泡玛特",
+      "yahoo": "9992.HK",
+      "market": "HK",
+      "benchmark": "2800.HK",
+      "group": "港股消费",
+      "notes": [],
+      "identity": [
+        "泡泡玛特",
+        "POP MART",
+        "Pop Mart",
+        "POPMART"
+      ]
+    },
+    {
+      "id": "02228",
+      "display": "02228.HK",
+      "name": "晶泰控股",
+      "yahoo": "2228.HK",
+      "market": "HK",
+      "benchmark": "3033.HK",
+      "group": "港股科技",
+      "notes": [],
+      "identity": [
+        "晶泰",
+        "XTALPI",
+        "XtalPi"
+      ]
+    }
+  ]
+}

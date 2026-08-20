@@ -1,3 +1,5 @@
+import type { SessionFreshness } from "./shared/market-snapshot";
+
 export type Market = "US" | "HK";
 
 export type VolumeClass =
@@ -79,6 +81,7 @@ export interface SeriesBundle {
   splits: SplitEvent[];
   dividends: DividendEvent[];
   error?: string;
+  stale?: boolean;
 }
 
 export interface InverseStats {
@@ -171,6 +174,7 @@ export interface MarketStamp {
   isNew: boolean;
   closed: boolean;
   label: string;
+  freshness?: SessionFreshness;
 }
 
 export interface Chop {
@@ -210,4 +214,35 @@ export interface GenerateState {
   lastBeijingDate?: string;
   lastUsSession?: string | null;
   lastHkSession?: string | null;
+}
+
+export interface UniversePayload {
+  items: UniverseItem[];
+  pendingIds: string[];
+  reportIds: string[];
+  referencedBenchmarks: string[];
+  staleStats: boolean;
+}
+
+export type SearchScope = "all" | "tracked" | "us" | "hk";
+
+export interface SearchHit {
+  id: string;
+  display: string;
+  name: string;
+  yahoo: string;
+  market: Market;
+  tracked: boolean;
+  source: "universe" | "sec" | "hkex" | "quote";
+}
+
+export interface SearchResult {
+  hits: SearchHit[];
+  note?: string;
+}
+
+export interface UniversePreviewResult {
+  item: UniverseItem;
+  tracked: boolean;
+  benchmarks: readonly string[];
 }

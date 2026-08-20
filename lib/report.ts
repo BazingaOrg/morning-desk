@@ -1,4 +1,12 @@
 import { buildRow, sortRows } from "./calc";
+import { usMarketClock } from "./shared/calendar";
+import {
+  classifyUsFreshness,
+  saveMarketSnapshot,
+  type MarketSnapshot,
+} from "./shared/market-snapshot";
+import { nextSessionWaterline, type SessionFreshness } from "./shared/session";
+import { writeDayRun } from "./shared/run-lock";
 import { beijingDate, formatBeijingStamp, HK_TZ, inNextDays, lastCompleteSessionDate, US_TZ } from "./time";
 import type {
   Catalyst,
@@ -11,9 +19,9 @@ import type {
   ThesisReviewItem,
 } from "./types";
 import { collectFacts, factsFor, type FactDoc } from "./facts";
-import { HK_REF, UNIVERSE, US_REF } from "./universe";
+import { HK_REF, US_REF } from "./universe";
 import { fetchUniverseSeries } from "./yahoo";
-import { loadThesis, saveReport, saveState } from "./store";
+import { loadState, loadThesis, loadUniverse, saveReport, saveState } from "./store";
 
 function lastCompleteDate(bundle: SeriesBundle | undefined, exchangeTz: string): string | null {
   if (!bundle?.bars.length) return null;
@@ -24,22 +32,45 @@ function lastCompleteDate(bundle: SeriesBundle | undefined, exchangeTz: string):
   );
 }
 
-function stampFor(market: "US" | "HK", sessionDate: string | null): MarketStamp {
-  if (!sessionDate) {
-    return {
-      market,
-      sessionDate: null,
-      isNew: false,
-      closed: true,
-      label: "休市／无新收盘数据",
-    };
+function classifyHkFreshness(
+  barSession: string | null,
+  lastHkSession: string | null | undefined,
+  usedStaleCache: boolean,
+): SessionFreshness {
+  if (!barSession) return "unavailable";
+  if (usedStaleCache) return "stale";
+  if (barSession === lastHkSession) return "unchanged";
+  return "new";
+}
+
+function stampFor(
+  market: "US" | "HK",
+  sessionDate: string | null,
+  freshness: SessionFreshness,
+): MarketStamp {
+  const isNew = freshness === "new" || freshness === "early-close";
+  const closed = freshness === "closed" || freshness === "unavailable";
+  let label: string;
+  if (!sessionDate || freshness === "unavailable") {
+    label = "休市／无新收盘数据";
+  } else if (freshness === "closed") {
+    label = `${sessionDate} 休市`;
+  } else if (freshness === "unchanged") {
+    label = `${sessionDate} 已收盘（未变）`;
+  } else if (freshness === "stale") {
+    label = `${sessionDate} 缓存过期`;
+  } else if (freshness === "early-close") {
+    label = `${sessionDate} 提前收市`;
+  } else {
+    label = `${sessionDate} 已收盘`;
   }
   return {
     market,
     sessionDate,
-    isNew: true,
-    closed: false,
-    label: `${sessionDate} 已收盘`,
+    isNew,
+    closed,
+    label,
+    freshness,
   };
 }
 
@@ -94,7 +125,7 @@ function buildConclusion(
     const strong = groups[0];
     const weak = groups[groups.length - 1];
     lines.push(
-      `港股采用 ${hk.sessionDate} 完整收盘：7 只中 ${up} 只收涨。` +
+      `港股采用 ${hk.sessionDate} 完整收盘：${hkRows.length} 只中 ${up} 只收涨。` +
         (strong && weak && strong.name !== weak.name
           ? `${strong.name}相对更强，${weak.name}相对更弱。`
           : ""),
@@ -116,6 +147,7 @@ function buildConclusion(
   }
 
   const thesisRisk = thesisReviews.filter((t) => t.review !== "正常跟踪" || t.status === "↓削弱");
+  const totalCount = usRows.length + hkRows.length;
   const unbuiltCount = [...usRows, ...hkRows].filter((r) => r.thesisStatus === "？未建立").length;
   if (thesisRisk.length) {
     lines.push(
@@ -123,8 +155,8 @@ function buildConclusion(
     );
   } else {
     lines.push(
-      unbuiltCount === 52
-        ? "52 只证券的持有逻辑均未建立，本次不因价格波动补写或改写 Thesis。"
+      unbuiltCount === totalCount
+        ? `${totalCount} 只证券的持有逻辑均未建立，本次不因价格波动补写或改写 Thesis。`
         : "未见已核验的 Thesis 状态变化；单日涨跌本身不构成持有逻辑变化。",
     );
   }
@@ -250,6 +282,13 @@ function buildChops(
       { key: "thesis", title: "Thesis", value: "不更新", tone: "idle" },
     ];
   }
+  if (!us.isNew && !hk.isNew) {
+    return [
+      { key: "risk", title: "风险偏好", value: "未变", tone: "idle" },
+      { key: "rs", title: "相对强弱", value: "未变", tone: "idle" },
+      { key: "thesis", title: "Thesis", value: "不更新", tone: "idle" },
+    ];
+  }
   const live = rows.filter((r) => (r.market === "US" ? us.isNew : hk.isNew));
   const up = live.filter((r) => (r.ret1D ?? 0) > 0).length;
   const down = live.filter((r) => (r.ret1D ?? 0) < 0).length;
@@ -265,7 +304,7 @@ function buildChops(
   const need = reviews.filter((r) => r.review === "重新评估").length;
   const watch = reviews.filter((r) => r.review === "重点关注").length;
   const unbuilt = rows.filter((r) => r.thesisStatus === "？未建立").length;
-  const thesisValue = need ? "需重估" : watch ? "需关注" : unbuilt === 52 ? "未建立" : "无复核";
+  const thesisValue = need ? "需重估" : watch ? "需关注" : unbuilt === rows.length ? "未建立" : "无复核";
   const thesisTone = need ? "alert" : watch ? "calm" : "idle";
 
   return [
@@ -304,33 +343,54 @@ function sessionWindow(bundle: SeriesBundle | undefined, lastDate: string | null
 export async function generateReport(): Promise<DailyReport> {
   const generatedAt = new Date();
   const bj = beijingDate(generatedAt);
+  const state = await loadState();
+  const items = await loadUniverse();
   const thesis = await loadThesis();
 
-  const series = await fetchUniverseSeries(new Map());
+  const series = await fetchUniverseSeries(new Map(), items);
 
   const usRef = series.get(US_REF);
   const hkRef = series.get(HK_REF);
   const usSession = lastCompleteDate(usRef, US_TZ);
   const hkSession = lastCompleteDate(hkRef, HK_TZ);
 
-  const us = stampFor("US", usSession);
-  const hk = stampFor("HK", hkSession);
+  const clock = usMarketClock(generatedAt);
+  const usFreshness = classifyUsFreshness({
+    reportKind: clock.reportKind,
+    expectedCompleteSession: clock.lastComplete.ymd,
+    barSession: usSession,
+    lastSuccessSession: state.lastUsSession,
+    usedStaleCache: Boolean(usRef?.stale),
+    completeKind: clock.lastComplete.kind,
+  });
+  const hkFreshness = classifyHkFreshness(
+    hkSession,
+    state.lastHkSession,
+    Boolean(hkRef?.stale),
+  );
 
-  const closedBoth = !us.isNew && !hk.isNew;
+  const us = stampFor(
+    "US",
+    clock.reportKind === "closed" ? clock.reportYmd : usSession,
+    usFreshness,
+  );
+  const hk = stampFor("HK", hkSession, hkFreshness);
+
+  const closedBoth = us.closed && hk.closed;
   const usWindow = sessionWindow(usRef, usSession, 2);
   const hkWindow = sessionWindow(hkRef, hkSession, 2);
   const facts = await collectFacts({
-    items: UNIVERSE,
+    items,
     usSessions: usWindow,
     hkSessions: hkWindow,
   });
   const factById = new Map<string, FactDoc[]>();
-  for (const item of UNIVERSE) {
+  for (const item of items) {
     const window = item.market === "US" ? usWindow : hkWindow;
     factById.set(item.id, factsFor(facts.docs, item.id, window));
   }
 
-  const rows: SecurityRow[] = UNIVERSE.map((item) => {
+  const rows: SecurityRow[] = items.map((item) => {
     const session = item.market === "US" ? usSession : hkSession;
     const bundle = series.get(item.yahoo) ?? {
       item,
@@ -356,7 +416,7 @@ export async function generateReport(): Promise<DailyReport> {
   const conclusion = buildConclusion(us, hk, usRows, hkRows, movers, reviews);
 
   const catalysts: Catalyst[] = [];
-  for (const item of UNIVERSE) {
+  for (const item of items) {
     for (const doc of facts.docs.filter((d) => d.id === item.id)) {
       if (!doc.catalystDate || !doc.official || !inNextDays(doc.catalystDate, bj, 30)) continue;
       catalysts.push({
@@ -428,10 +488,39 @@ export async function generateReport(): Promise<DailyReport> {
   };
 
   await saveReport(report);
+
+  const runId = `morning-${bj}-${crypto.randomUUID()}`;
+  const snapshot: MarketSnapshot = {
+    id: `ms-${runId}`,
+    kind: "overnight_snapshot",
+    beijingDate: bj,
+    generatedAt: generatedAt.toISOString(),
+    us: {
+      sessionDate: us.sessionDate,
+      freshness: usFreshness,
+      kind: clock.reportKind === "closed" ? "closed" : usSession ? clock.lastComplete.kind : "unavailable",
+      wallYmd: clock.wallYmd,
+      wallKind: clock.wallKind,
+      reportYmd: clock.reportYmd,
+      reportKind: clock.reportKind,
+      lastCompleteYmd: clock.lastComplete.ymd,
+    },
+    hk: {
+      sessionDate: hkSession,
+      freshness: hkFreshness,
+    },
+  };
+  await saveMarketSnapshot(snapshot);
   await saveState({
     lastBeijingDate: bj,
-    lastUsSession: usSession,
-    lastHkSession: hkSession,
+    lastUsSession: nextSessionWaterline(state.lastUsSession, usSession, usFreshness),
+    lastHkSession: nextSessionWaterline(state.lastHkSession, hkSession, hkFreshness),
+  });
+  await writeDayRun("morning", bj, {
+    status: "success",
+    runId,
+    finishedAt: new Date().toISOString(),
+    marketSnapshotId: snapshot.id,
   });
   return report;
 }

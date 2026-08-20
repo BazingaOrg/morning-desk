@@ -6,5 +6,16 @@ services:
       - "3000:3000"
     environment:
       TZ: Asia/Shanghai
+      DESK_EDIT_TOKEN: ${DESK_EDIT_TOKEN:-}
     volumes:
       - ./data:/app/data
+
+  scheduler:
+    build: .
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      DESK_EDIT_TOKEN: ${DESK_EDIT_TOKEN:-}
+    volumes:
+      - ./data:/app/data
+    command: npm run scheduler

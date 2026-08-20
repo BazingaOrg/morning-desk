@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
-import type { DailyReport } from "@/lib/types";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { DailyReport, UniversePayload } from "@/lib/types";
+import { intersectReport } from "@/lib/universe-query";
 import { Briefing } from "./Briefing";
 import { DeskMark } from "./DeskMark";
+import { UniversePanel } from "./UniversePanel";
 
 const themeListeners = new Set<() => void>();
 
@@ -14,14 +16,19 @@ function currentTheme(): "light" | "dark" {
 export function ReportApp({
   initialReport,
   initialUpdating,
+  initialUniverse,
 }: {
   initialReport: DailyReport | null;
   initialUpdating: boolean;
+  initialUniverse: UniversePayload;
 }) {
   const [report, setReport] = useState(initialReport);
+  const [universe, setUniverse] = useState(initialUniverse);
+  const [rosterOpen, setRosterOpen] = useState(false);
   const [updating, setUpdating] = useState(initialUpdating);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState("lede");
+  const rosterBtnRef = useRef<HTMLButtonElement>(null);
   const theme = useSyncExternalStore(
     (cb) => {
       themeListeners.add(cb);
@@ -51,7 +58,14 @@ export function ReportApp({
         const body = (await latest.json()) as { report: DailyReport | null };
         if (stop) return;
         if (body.report) setReport(body.report);
-        setUpdating(false);
+        try {
+          const uniRes = await fetch("/api/universe", { cache: "no-store" });
+          if (uniRes.ok) {
+            const uni = (await uniRes.json()) as UniversePayload;
+            if (!stop) setUniverse(uni);
+          }
+        } catch {}
+        if (!stop) setUpdating(false);
       } catch {
         if (!stop) setFailed(true);
       }
@@ -95,6 +109,33 @@ export function ReportApp({
     for (const cb of themeListeners) cb();
   }
 
+  const closeRoster = useCallback(() => {
+    setRosterOpen(false);
+    requestAnimationFrame(() => rosterBtnRef.current?.focus());
+  }, []);
+
+  async function openRoster() {
+    setRosterOpen(true);
+    try {
+      const res = await fetch("/api/universe", { cache: "no-store" });
+      if (!res.ok) return;
+      const body = (await res.json()) as UniversePayload;
+      setUniverse(body);
+    } catch {}
+  }
+
+  function onChanged(next: UniversePayload, extra?: { started?: boolean }) {
+    setUniverse(next);
+    setReport((prev) =>
+      prev ? intersectReport(prev, new Set(next.items.map((item) => item.id))) : prev,
+    );
+    if (extra?.started) {
+      setUpdating(true);
+      setFailed(false);
+      closeRoster();
+    }
+  }
+
   return (
     <div className="app">
       <header className="volnav">
@@ -112,6 +153,15 @@ export function ReportApp({
         </nav>
         <div className="vol-actions">
           <button
+            ref={rosterBtnRef}
+            className="ghost"
+            type="button"
+            aria-expanded={rosterOpen}
+            onClick={() => (rosterOpen ? closeRoster() : openRoster())}
+          >
+            名单
+          </button>
+          <button
             className="ghost theme-toggle"
             onClick={toggleTheme}
             type="button"
@@ -122,6 +172,16 @@ export function ReportApp({
           </button>
         </div>
       </header>
+
+      {rosterOpen ? (
+        <UniversePanel
+          open
+          payload={universe}
+          generating={updating}
+          onClose={closeRoster}
+          onChanged={onChanged}
+        />
+      ) : null}
 
       <main className="desk">
         {updating ? (
@@ -137,7 +197,7 @@ export function ReportApp({
             {failed ? (
               <p className="status">这次更新没有完成，下面仍是上一份完整收盘。</p>
             ) : null}
-            <Briefing report={report} />
+            <Briefing report={report} staleStats={universe.staleStats} />
           </>
         ) : (
           <div className="splash">

@@ -1,30 +1,28 @@
-import { generateReport } from "../lib/report";
-import { writeJobStatus } from "../lib/store";
+import { runGenerate } from "../lib/generate-job";
+import { readDayRun } from "../lib/shared/run-lock";
+import { beijingDate } from "../lib/time";
 
 async function main() {
-  await writeJobStatus({
-    state: "running",
-    startedAt: new Date().toISOString(),
-    message: "正在拉取完整交易日收盘",
-  });
+  const bj = beijingDate();
+  if (process.env.FORCE_GENERATE !== "1") {
+    const existing = await readDayRun("morning", bj);
+    if (existing?.status === "success") {
+      console.log("morning already success today, skip");
+      return;
+    }
+  }
+
   try {
-    const report = await generateReport();
-    await writeJobStatus({
-      state: "ok",
-      startedAt: undefined,
-      finishedAt: new Date().toISOString(),
-      message: `美股 ${report.us.label} ｜ 港股 ${report.hk.label}`,
-    });
+    const report = await runGenerate();
     console.log(report.title);
     console.log(`美股 ${report.us.label} ｜ 港股 ${report.hk.label}`);
     if (report.closedBoth) console.log(report.closedNote);
     else report.conclusion.forEach((line) => console.log(line));
   } catch (error) {
-    await writeJobStatus({
-      state: "error",
-      finishedAt: new Date().toISOString(),
-      message: error instanceof Error ? error.message : String(error),
-    });
+    if (error instanceof Error && error.message === "generate already running") {
+      console.log("generate already running, skip");
+      return;
+    }
     throw error;
   }
 }
