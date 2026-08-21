@@ -31,5 +31,16 @@ export function shouldRunShort(
   if (!isSchedulerWeekday(now)) return false;
   if (!isAtOrAfterBjNine(now)) return false;
   if (morning?.status !== "success") return false;
-  return short === null;
+  if (short === null) return true;
+  if (
+    morning.marketSnapshotId &&
+    short.marketSnapshotId &&
+    short.marketSnapshotId !== morning.marketSnapshotId
+  ) {
+    return true;
+  }
+  if (short.status === "failed") return true;
+  if (short.status !== "running" || !short.startedAt) return false;
+  const started = Date.parse(short.startedAt);
+  return Number.isFinite(started) && now.getTime() - started >= 20 * 60 * 1000;
 }

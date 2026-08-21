@@ -1,9 +1,9 @@
-import { runShortMonitorStub } from "../lib/short-monitor/pipeline";
+import { runShortMonitor } from "../lib/short-monitor/job";
 
 async function main() {
-  const result = await runShortMonitorStub();
+  const result = await runShortMonitor(new Date(), { retryFailed: true });
   console.log(
-    `short-monitor ${result.status}: ${result.reason} (snapshot ${result.marketSnapshotId})`,
+    `short-monitor ${result.status}: ${result.degradationReason ?? "ok"} (snapshot ${result.marketSnapshotId})`,
   );
 }
 

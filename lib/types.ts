@@ -62,14 +62,19 @@ export interface DividendEvent {
 export interface QuoteSnapshot {
   yahoo: string;
   symbol: string;
+  sourceSymbol?: string;
   shortName?: string;
   longName?: string;
+  sourceLongName?: string;
+  sourceSecurityType?: string;
   quoteType?: string;
   exchange?: string;
   currency?: string;
   marketState?: string;
   exchangeTimezoneName?: string;
   regularMarketTime?: string;
+  regularMarketPrice?: number;
+  sourceSessionDate?: string;
   firstTradeDate?: string;
   tradeable?: boolean;
 }
@@ -82,6 +87,7 @@ export interface SeriesBundle {
   dividends: DividendEvent[];
   error?: string;
   stale?: boolean;
+  adjustmentMode?: "unadjusted" | "forward-adjusted" | "adjusted";
 }
 
 export interface InverseStats {

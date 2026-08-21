@@ -60,6 +60,7 @@ function input(
     catalystEntry: partial.catalystEntry ?? false,
     position: partial.position ?? "FLAT",
     thesisStop: partial.thesisStop,
+    priceStop: partial.priceStop,
     timeStop: partial.timeStop,
     ttlExpired: partial.ttlExpired,
   };
@@ -322,6 +323,24 @@ describe("decideAsset fixtures", () => {
     const exitTime = decideAsset(input({ ...openBase, timeStop: true }));
     assert.equal(exitTime.action, "EXIT");
     assert.ok(exitTime.reasons.includes("time-stop"));
+
+    const exitPrice = decideAsset(input({ ...openBase, priceStop: true }));
+    assert.equal(exitPrice.action, "EXIT");
+    assert.ok(exitPrice.reasons.includes("price-stop"));
+
+    const blocked = decideAsset(input({
+      ...openBase,
+      blockingVetoes: ["stale-data"],
+    }));
+    assert.equal(blocked.action, "WAIT");
+    assert.ok(blocked.reasons.includes("open-manual-review-required"));
+
+    const blockedWithStop = decideAsset(input({
+      ...openBase,
+      blockingVetoes: ["stale-data"],
+      thesisStop: true,
+    }));
+    assert.equal(blockedWithStop.action, "EXIT");
 
     const wait = decideAsset(input({ position: "OPEN", model: baseModel({}) }));
     assert.equal(wait.action, "WAIT");

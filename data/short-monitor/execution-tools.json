@@ -12,7 +12,8 @@
       "underlyingId": "SPCX",
       "expenseNote": "0.75% expense ratio",
       "officialUrl": "https://leverageshares.com/us/etfs/leverage-shares-2x-short-spcx-daily-etf/",
-      "name": "Leverage Shares 2x Short SPCX Daily ETF"
+      "name": "Leverage Shares 2x Short SPCX Daily ETF",
+      "identityAll": ["Leverage Shares", "Short", "SPCX"]
     },
     {
       "id": "SNDQ",
@@ -26,6 +27,7 @@
       "expenseNote": "1.49% expense ratio",
       "officialUrl": "https://www.tradretfs.com/sndq",
       "name": "Tradr 2X Short SNDK Daily ETF",
+      "identityAll": ["Tradr", "Short", "SNDK"],
       "notes": ["verify issuer page before live use"]
     },
     {
@@ -39,7 +41,8 @@
       "underlyingId": "QQQ",
       "expenseNote": "0.95% expense ratio",
       "officialUrl": "https://www.proshares.com/our-etfs/leveraged-and-inverse/qid",
-      "name": "ProShares UltraShort QQQ"
+      "name": "ProShares UltraShort QQQ",
+      "identityAll": ["ProShares", "UltraShort", "QQQ"]
     },
     {
       "id": "PSQ",
@@ -52,7 +55,9 @@
       "underlyingId": "QQQ",
       "expenseNote": "0.95% expense ratio",
       "officialUrl": "https://www.proshares.com/our-etfs/leveraged-and-inverse/psq",
-      "name": "ProShares Short QQQ"
+      "name": "ProShares Short QQQ",
+      "identityAll": ["ProShares", "Short", "QQQ"],
+      "identityNone": ["UltraShort"]
     },
     {
       "id": "GLL",
@@ -65,7 +70,8 @@
       "underlyingId": "GLD",
       "expenseNote": "0.95% expense ratio",
       "officialUrl": "https://www.proshares.com/our-etfs/leveraged-and-inverse/gll",
-      "name": "ProShares UltraShort Gold"
+      "name": "ProShares UltraShort Gold",
+      "identityAll": ["ProShares", "UltraShort", "Gold"]
     }
   ]
 }

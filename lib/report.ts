@@ -20,8 +20,9 @@ import type {
 } from "./types";
 import { collectFacts, factsFor, type FactDoc } from "./facts";
 import { HK_REF, US_REF } from "./universe";
-import { fetchUniverseSeries } from "./yahoo";
-import { loadState, loadThesis, loadUniverse, saveReport, saveState } from "./store";
+import { fetchAdjustedUsSeries, fetchUniverseSeries } from "./yahoo";
+import { buildShortMonitorUniverseItems, loadSecurityMaster } from "./short-monitor/master";
+import { loadState, loadThesis, loadUniverse, saveMorningReportRun, saveState } from "./store";
 
 function lastCompleteDate(bundle: SeriesBundle | undefined, exchangeTz: string): string | null {
   if (!bundle?.bars.length) return null;
@@ -343,11 +344,30 @@ function sessionWindow(bundle: SeriesBundle | undefined, lastDate: string | null
 export async function generateReport(): Promise<DailyReport> {
   const generatedAt = new Date();
   const bj = beijingDate(generatedAt);
+  const runId = `morning-${bj}-${crypto.randomUUID()}`;
   const state = await loadState();
   const items = await loadUniverse();
+  const shortMonitorItems = buildShortMonitorUniverseItems();
   const thesis = await loadThesis();
 
-  const series = await fetchUniverseSeries(new Map(), items);
+  const fetchItems = [...new Map(
+    [...items, ...shortMonitorItems].map((item) => [item.yahoo, item]),
+  ).values()];
+  const series = await fetchUniverseSeries(new Map(), fetchItems);
+  await Promise.all(loadSecurityMaster().underlyings.map(async (underlying) => {
+    const current = series.get(underlying.yahoo);
+    if (!current) return;
+    try {
+      const adjusted = await fetchAdjustedUsSeries(underlying.yahoo);
+      series.set(underlying.yahoo, {
+        ...current,
+        ...adjusted,
+        adjustmentMode: "adjusted",
+      });
+    } catch {
+      series.set(underlying.yahoo, { ...current, adjustmentMode: "unadjusted" });
+    }
+  }));
 
   const usRef = series.get(US_REF);
   const hkRef = series.get(HK_REF);
@@ -487,9 +507,6 @@ export async function generateReport(): Promise<DailyReport> {
     },
   };
 
-  await saveReport(report);
-
-  const runId = `morning-${bj}-${crypto.randomUUID()}`;
   const snapshot: MarketSnapshot = {
     id: `ms-${runId}`,
     kind: "overnight_snapshot",
@@ -509,8 +526,25 @@ export async function generateReport(): Promise<DailyReport> {
       sessionDate: hkSession,
       freshness: hkFreshness,
     },
+    marketSeries: Object.fromEntries(
+      shortMonitorItems.map((item) => [
+        item.yahoo,
+        series.get(item.yahoo) ?? {
+          item,
+          bars: [],
+          splits: [],
+          dividends: [],
+          error: "missing from morning capture",
+        },
+      ]),
+    ),
   };
   await saveMarketSnapshot(snapshot);
+  await saveMorningReportRun({
+    runId,
+    report,
+    marketSnapshotId: snapshot.id,
+  });
   await saveState({
     lastBeijingDate: bj,
     lastUsSession: nextSessionWaterline(state.lastUsSession, usSession, usFreshness),

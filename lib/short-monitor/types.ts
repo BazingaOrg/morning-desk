@@ -17,6 +17,27 @@ export type EvidenceAsset = AssetId | "MACRO";
 
 export type SourceTier = 1 | 2 | 3 | 4;
 
+export type EvidenceCluster =
+  | "MARKET"
+  | "RATES"
+  | "LIQUIDITY"
+  | "POSITIONING"
+  | "COMPANY"
+  | "CATALYST"
+  | "CALENDAR";
+
+export type EvidenceSignal = "BEARISH" | "BULLISH" | "NEUTRAL" | "CONTEXT";
+
+export type EvidenceCapability =
+  | "PRICE"
+  | "RATES"
+  | "LIQUIDITY"
+  | "FUNDAMENTAL"
+  | "POSITIONING"
+  | "CATALYST"
+  | "CALENDAR"
+  | "MODEL";
+
 export type TierLevel = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH";
 
 export type EvidenceItem = {
@@ -35,7 +56,30 @@ export type EvidenceItem = {
   summary: string;
   verified: boolean;
   stale: boolean;
+  cluster: EvidenceCluster;
+  signal: EvidenceSignal;
+  relevantAssets: AssetId[];
   limitations: string[];
+};
+
+export type EvidenceGap = {
+  source: string;
+  affectedAssets: AssetId[];
+  capability: EvidenceCapability;
+  blocking: boolean;
+  message: string;
+};
+
+export type EvidencePacket = {
+  items: EvidenceItem[];
+  gaps: EvidenceGap[];
+  sourcesUsed: string[];
+};
+
+export type CollectorResult = {
+  items: EvidenceItem[];
+  gaps: EvidenceGap[];
+  sourcesUsed: string[];
 };
 
 export type AssetModelView = {
@@ -86,6 +130,7 @@ export type AssetDecisionInput = {
   catalystEntry: boolean;
   position: PositionStatus;
   thesisStop?: boolean;
+  priceStop?: boolean;
   timeStop?: boolean;
   ttlExpired?: boolean;
 };
@@ -106,10 +151,29 @@ export type AssetDecision = {
   vetoes: string[];
   rr: number | null;
   priceConfirmation: TierLevel | null;
+  trigger: string | null;
   executionTool: string | null;
   stop: string | null;
   exit: string | null;
   reason: string;
+};
+
+export type CatalystMapItem = {
+  id: string;
+  date: string;
+  title: string;
+  kind: string;
+  sourceUrl: string;
+  relevantAssets: AssetId[];
+};
+
+export type AssetHistoryChange = {
+  asset: AssetId;
+  previousState: MonitorState | null;
+  currentState: MonitorState;
+  previousScore: number | null;
+  currentScore: number | null;
+  scoreDelta: number | null;
 };
 
 export type DecisionResult = {
@@ -125,10 +189,23 @@ export type DecisionResult = {
 
 export type ShortMonitorReport = {
   runId: string;
+  beijingDate: string;
   marketSnapshotId: string;
   overnight_snapshot: true;
+  dataCutoff: {
+    snapshotGeneratedAt: string;
+    evidenceCollectedAt: string;
+    usSession: string | null;
+    usFreshness: SessionFreshness;
+    usReportKind: "open" | "early-close" | "closed";
+  };
   position: PositionStatus;
   decision: DecisionResult;
+  evidence: EvidenceItem[];
+  gaps: EvidenceGap[];
+  catalysts7d: CatalystMapItem[];
+  catalysts30d: CatalystMapItem[];
+  historyChanges: AssetHistoryChange[];
   modelOutput: DeepSeekOutput | null;
   status: "ok" | "degraded" | "failed";
   degradationReason: string | null;

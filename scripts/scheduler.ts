@@ -1,7 +1,7 @@
 import { runGenerate } from "../lib/generate-job";
 import { shouldRunMorning, shouldRunShort } from "../lib/shared/schedule-policy";
 import { readDayRun } from "../lib/shared/run-lock";
-import { runShortMonitorStub } from "../lib/short-monitor/pipeline";
+import { runShortMonitorStub } from "../lib/short-monitor/job";
 import { beijingDate } from "../lib/time";
 
 function schedulerNow(): Date {
@@ -41,7 +41,7 @@ async function tick(now: Date): Promise<void> {
   }
 
   if (shouldRunShort(now, morning, short)) {
-    console.log(`[scheduler] ${bj} run short-monitor stub`);
+    console.log(`[scheduler] ${bj} run short-monitor`);
     try {
       const result = await runShortMonitorStub(now);
       console.log(

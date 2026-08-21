@@ -6,6 +6,7 @@ import { after, before, describe, it } from "node:test";
 import {
   classifyUsFreshness,
   loadMarketSnapshot,
+  parseMarketSnapshot,
   saveMarketSnapshot,
   type MarketSnapshot,
 } from "./market-snapshot";
@@ -141,6 +142,25 @@ describe("market snapshot persistence", () => {
         sessionDate: null,
         freshness: "unavailable",
       },
+      marketSeries: {
+        QQQ: {
+          item: {
+            id: "QQQ",
+            display: "QQQ",
+            name: "Invesco QQQ",
+            yahoo: "QQQ",
+            market: "US",
+            benchmark: "VOO",
+            group: "基准",
+            notes: [],
+            identity: ["Invesco QQQ"],
+          },
+          bars: [],
+          splits: [],
+          dividends: [],
+          adjustmentMode: "unadjusted",
+        },
+      },
     };
     await saveMarketSnapshot(snap, baseDir);
     const loaded = await loadMarketSnapshot(snap.id, baseDir);
@@ -178,5 +198,30 @@ describe("market snapshot persistence", () => {
     const loaded = await loadMarketSnapshot(base.id, baseDir);
     assert.ok(loaded);
     assert.ok(variants.some((snapshot) => snapshot.generatedAt === loaded.generatedAt));
+  });
+
+  it("rejects malformed dates, inconsistent closed state and unsafe ids", async () => {
+    assert.equal(parseMarketSnapshot({}), null);
+    assert.equal(
+      parseMarketSnapshot({
+        id: "ms-invalid",
+        kind: "overnight_snapshot",
+        beijingDate: "2026-01-07",
+        generatedAt: "2026-01-06T01:00:00.000Z",
+        us: {
+          sessionDate: "2026-01-05",
+          freshness: "new",
+          kind: "closed",
+          wallYmd: "2026-01-06",
+          wallKind: "closed",
+          reportYmd: "2026-01-06",
+          reportKind: "closed",
+          lastCompleteYmd: "2026-01-05",
+        },
+        hk: { sessionDate: null, freshness: "unavailable" },
+      }),
+      null,
+    );
+    await assert.rejects(() => loadMarketSnapshot("../escape", baseDir), /invalid market snapshot id/);
   });
 });

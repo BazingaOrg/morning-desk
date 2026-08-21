@@ -5,6 +5,13 @@ data/reports
 data/cache
 data/latest.json
 data/state.json
+data/short-monitor/evidence-snapshots
 *.md
+!prompts/
+!prompts/short-monitor/
+!prompts/short-monitor/*.md
+!prompts/short-monitor/assets/
+!prompts/short-monitor/assets/*.md
+!prompts/short-monitor/**/*.md
 AGENTS.md
 CLAUDE.md

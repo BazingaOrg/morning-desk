@@ -8,13 +8,23 @@ import type {
   SplitEvent,
   UniverseItem,
 } from "./types";
-import { cacheHasCompleteSession, beijingDate, HK_TZ, lastCompleteSessionDate, US_TZ } from "./time";
+import { cacheHasCompleteSession, beijingDate, HK_TZ, lastCompleteSessionDate, US_TZ, ymdInZone } from "./time";
 import { yahooSymbols } from "./universe";
 
 const CACHE_DIR = path.join(process.cwd(), "data", "cache");
 const SINA_K = "https://stock.finance.sina.com.cn/usstock/api/json_v2.php/US_MinKService.getDailyK";
 const TX_HK = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get";
 const TX_QT = "https://qt.gtimg.cn/q=";
+export const MARKET_DATA_REQUEST_TIMEOUT_MS = 15_000;
+export const MARKET_DATA_RESPONSE_MAX_BYTES = 2 * 1024 * 1024;
+
+export interface FetchTextOptions {
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+  maxBytes?: number;
+}
+
+class MarketDataFetchError extends Error {}
 
 function asError(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -45,6 +55,7 @@ interface CachedChart {
   bars: DailyBar[];
   splits: SplitEvent[];
   dividends: DividendEvent[];
+  adjustmentMode?: "unadjusted" | "forward-adjusted" | "adjusted";
 }
 
 function cachePath(symbol: string): string {
@@ -90,13 +101,65 @@ function detectSplits(bars: DailyBar[]): SplitEvent[] {
   return out;
 }
 
-async function fetchText(url: string): Promise<ArrayBuffer> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
-  return res.arrayBuffer();
+export async function fetchText(url: string, options: FetchTextOptions = {}): Promise<ArrayBuffer> {
+  const timeoutMs = options.timeoutMs ?? MARKET_DATA_REQUEST_TIMEOUT_MS;
+  const maxBytes = options.maxBytes ?? MARKET_DATA_RESPONSE_MAX_BYTES;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("Invalid market data timeout");
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0) throw new Error("Invalid market data response limit");
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const res = await (options.fetchImpl ?? fetch)(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new MarketDataFetchError(`Market data request returned HTTP ${res.status}`);
+
+    const contentLength = Number(res.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw new MarketDataFetchError("Market data response exceeded the size limit");
+    }
+    if (!res.body) return new ArrayBuffer(0);
+
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const reader = res.body.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBytes) {
+          await reader.cancel();
+          throw new MarketDataFetchError("Market data response exceeded the size limit");
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const result = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return result.buffer;
+  } catch (error) {
+    if (error instanceof MarketDataFetchError) throw error;
+    if (timedOut || controller.signal.aborted) throw new Error("Market data request timed out");
+    throw new Error("Market data request failed");
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchUsBars(yahoo: string): Promise<DailyBar[]> {
@@ -114,6 +177,80 @@ async function fetchUsBars(yahoo: string): Promise<DailyBar[]> {
     volume: Number(r.v),
   }));
   return keepContiguous(bars.filter((b) => Number.isFinite(b.close)));
+}
+
+type YahooChartPayload = {
+  chart?: {
+    result?: Array<{
+      timestamp?: number[];
+      indicators?: {
+        quote?: Array<{
+          open?: Array<number | null>;
+          high?: Array<number | null>;
+          low?: Array<number | null>;
+          close?: Array<number | null>;
+          volume?: Array<number | null>;
+        }>;
+        adjclose?: Array<{ adjclose?: Array<number | null> }>;
+      };
+      events?: {
+        splits?: Record<string, { date?: number; numerator?: number; denominator?: number; splitRatio?: string }>;
+        dividends?: Record<string, { date?: number; amount?: number }>;
+      };
+    }>;
+    error?: unknown;
+  };
+};
+
+export async function fetchAdjustedUsSeries(yahoo: string, options: FetchTextOptions = {}): Promise<{
+  bars: DailyBar[];
+  splits: SplitEvent[];
+  dividends: DividendEvent[];
+}> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahoo)}` +
+    "?range=2y&interval=1d&events=div%2Csplits&includeAdjustedClose=true";
+  const payload = JSON.parse(
+    new TextDecoder("utf-8").decode(await fetchText(url, options)),
+  ) as YahooChartPayload;
+  const result = payload.chart?.result?.[0];
+  const timestamps = result?.timestamp;
+  const quote = result?.indicators?.quote?.[0];
+  const adjusted = result?.indicators?.adjclose?.[0]?.adjclose;
+  if (!timestamps?.length || !quote || !adjusted) {
+    throw new Error(`Adjusted market data unavailable for ${yahoo}`);
+  }
+  const bars = timestamps.flatMap((timestamp, index): DailyBar[] => {
+    const close = quote.close?.[index];
+    const adjClose = adjusted[index];
+    if (close == null || adjClose == null || !Number.isFinite(close) || !Number.isFinite(adjClose)) {
+      return [];
+    }
+    const date = ymdInZone(new Date(timestamp * 1000), US_TZ);
+    const factor = adjClose / close;
+    const adjustedPrice = (value: number | null | undefined) =>
+      value == null || !Number.isFinite(value) ? null : value * factor;
+    return [{
+      date,
+      open: adjustedPrice(quote.open?.[index]),
+      high: adjustedPrice(quote.high?.[index]),
+      low: adjustedPrice(quote.low?.[index]),
+      close: adjClose,
+      adjClose,
+      volume: quote.volume?.[index] ?? null,
+    }];
+  });
+  if (!bars.length) throw new Error(`Adjusted market data unavailable for ${yahoo}`);
+  const splits = Object.values(result.events?.splits ?? {}).flatMap((event): SplitEvent[] => {
+    if (!event.date) return [];
+    const ratio = event.splitRatio ??
+      (event.numerator && event.denominator ? `${event.numerator}:${event.denominator}` : "unknown");
+    return [{ date: ymdInZone(new Date(event.date * 1000), US_TZ), ratio }];
+  });
+  const dividends = Object.values(result.events?.dividends ?? {}).flatMap((event): DividendEvent[] => {
+    if (!event.date || event.amount == null || !Number.isFinite(event.amount)) return [];
+    return [{ date: ymdInZone(new Date(event.date * 1000), US_TZ), amount: event.amount }];
+  });
+  return { bars, splits, dividends };
 }
 
 async function fetchHkBars(yahoo: string): Promise<{ bars: DailyBar[]; name?: string; flags?: string }> {
@@ -141,9 +278,11 @@ async function fetchHkBars(yahoo: string): Promise<{ bars: DailyBar[]; name?: st
 
 interface TxQuote {
   name: string;
+  longName: string;
   code: string;
   price: string;
   time: string;
+  securityType: string;
 }
 
 function parseTxQuotes(raw: string): Map<string, TxQuote> {
@@ -152,7 +291,14 @@ function parseTxQuotes(raw: string): Map<string, TxQuote> {
     const m = chunk.match(/v_([^=]+)="(.*)"/);
     if (!m) continue;
     const p = m[2].split("~");
-    map.set(m[1], { name: p[1] ?? "", code: p[2] ?? "", price: p[3] ?? "", time: p[30] ?? "" });
+    map.set(m[1], {
+      name: p[1] ?? "",
+      longName: p[46] ?? "",
+      code: p[2] ?? "",
+      price: p[3] ?? "",
+      time: p[30] ?? "",
+      securityType: p[56] ?? "",
+    });
   }
   return map;
 }
@@ -205,18 +351,32 @@ function snapshot(
   q?: TxQuote,
   flags?: string,
   first?: string,
+  fallbackName?: string,
 ): QuoteSnapshot {
+  const sourceSecurityType = q?.securityType.trim();
+  const quoteType =
+    sourceSecurityType === "GP-ETF"
+      ? "ETF"
+      : sourceSecurityType === "GP"
+        ? "EQUITY"
+        : "NONE";
   return {
     yahoo,
-    symbol: yahoo,
-    shortName: q?.name || undefined,
-    longName: q?.name || undefined,
-    quoteType: market === "HK" || yahoo.length <= 5 ? "EQUITY" : "ETF",
+    symbol: q?.code || yahoo,
+    sourceSymbol: q?.code || undefined,
+    shortName: q?.name || fallbackName || undefined,
+    longName: q?.longName || undefined,
+    sourceLongName: q?.longName || undefined,
+    sourceSecurityType: sourceSecurityType || undefined,
+    quoteType,
     exchange: market === "HK" ? "HKG" : "US",
     currency: market === "HK" ? "HKD" : "USD",
     marketState: flags ? phaseFromFlags(flags, market) : "CLOSED",
     exchangeTimezoneName: market === "HK" ? "Asia/Hong_Kong" : "America/New_York",
     regularMarketTime: parseLooseTime(q?.time),
+    regularMarketPrice:
+      q?.price && Number.isFinite(Number(q.price)) ? Number(q.price) : undefined,
+    sourceSessionDate: q?.time.match(/^(\d{4})[-/]?(\d{2})[-/]?(\d{2})/)?.slice(1, 4).join("-"),
     firstTradeDate: first,
     tradeable: true,
   };
@@ -289,6 +449,7 @@ export async function fetchUniverseSeries(
         bars: cached.bars,
         splits: cached.splits,
         dividends: cached.dividends,
+        adjustmentMode: cached.adjustmentMode ?? (item.market === "HK" ? "forward-adjusted" : "unadjusted"),
       });
       return;
     }
@@ -303,13 +464,14 @@ export async function fetchUniverseSeries(
       const q = snapshot(
         yahoo,
         item.market,
-        txQuotes.get(tencentCode(yahoo)) ??
-          (pack.name ? { name: pack.name, code: yahoo, price: "", time: "" } : undefined),
+        txQuotes.get(tencentCode(yahoo)),
         pack.flags || flags,
         bars[0]?.date,
+        pack.name,
       );
       quotes.set(yahoo, q);
-      bundles.set(yahoo, { item, quote: q, bars, splits, dividends });
+      const adjustmentMode = item.market === "HK" ? "forward-adjusted" as const : "unadjusted" as const;
+      bundles.set(yahoo, { item, quote: q, bars, splits, dividends, adjustmentMode });
       if (!expected || hasSessionBar(bars, expected)) {
         await writeCache(yahoo, {
           fetchedAt: new Date().toISOString(),
@@ -318,6 +480,7 @@ export async function fetchUniverseSeries(
           bars,
           splits,
           dividends,
+          adjustmentMode,
         });
       }
     } catch (error) {
@@ -330,6 +493,7 @@ export async function fetchUniverseSeries(
           splits: cached.splits,
           dividends: cached.dividends,
           stale: true,
+          adjustmentMode: cached.adjustmentMode ?? (item.market === "HK" ? "forward-adjusted" : "unadjusted"),
         });
       } else {
         bundles.set(yahoo, {

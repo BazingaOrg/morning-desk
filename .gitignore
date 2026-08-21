@@ -54,3 +54,4 @@ next-env.d.ts
 /data/short-monitor/runs
 /data/short-monitor/latest.json
 /data/short-monitor/state.json
+/data/short-monitor/evidence-snapshots

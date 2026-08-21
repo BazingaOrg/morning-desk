@@ -11,7 +11,7 @@
       "officialFirstSession": "2026-06-12",
       "historyStartDate": "2026-06-12",
       "historySource": "https://www.nasdaq.com/newsroom/spacex-ipo-rocket-company-launches-historic-ipo",
-      "identity": ["SpaceX"],
+      "identity": ["SpaceX", "Space Exploration Technologies"],
       "benchmarks": ["QQQ"],
       "notes": [
         "Only regular-session common-stock history after official first session. Discard earlier bars. Do not splice pre-IPO, ETF, or old SPAC SPCX."

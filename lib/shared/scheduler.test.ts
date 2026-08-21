@@ -68,9 +68,44 @@ describe("schedule-policy", () => {
     assert.equal(shouldRunShort(nine, success, success), false);
   });
 
+  it("runs short again when morning publishes a different snapshot", () => {
+    const now = bjWall("2026-01-06", 10, 0);
+    assert.equal(
+      shouldRunShort(
+        now,
+        { ...success, marketSnapshotId: "ms-2" },
+        { ...degraded, marketSnapshotId: "ms-1" },
+      ),
+      true,
+    );
+  });
+
+  it("retries only a stale running short record", () => {
+    const now = bjWall("2026-01-06", 10, 0);
+    const recent: DayRunRecord = {
+      status: "running",
+      runId: "short-recent",
+      startedAt: "2026-01-06T01:50:00.000Z",
+      marketSnapshotId: "ms-1",
+    };
+    const stale: DayRunRecord = {
+      ...recent,
+      runId: "short-stale",
+      startedAt: "2026-01-06T01:30:00.000Z",
+    };
+    assert.equal(shouldRunShort(now, success, recent), false);
+    assert.equal(shouldRunShort(now, success, stale), true);
+  });
+
   it("morning failed -> no short", () => {
     const nine = bjWall("2026-01-06", 9, 30);
     assert.equal(shouldRunMorning(nine, failed), true);
     assert.equal(shouldRunShort(nine, failed, null), false);
+  });
+
+  it("retries short when the day's short run failed", () => {
+    const nine = bjWall("2026-01-06", 10, 0);
+    assert.equal(shouldRunShort(nine, success, failed), true);
+    assert.equal(shouldRunShort(nine, success, degraded), false);
   });
 });

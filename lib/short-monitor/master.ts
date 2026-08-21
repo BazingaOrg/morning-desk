@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import type { UniverseItem } from "../types";
 
 export type UnderlyingKind = "equity" | "etf";
 
@@ -35,6 +36,8 @@ export interface ExecutionTool {
   expenseNote: string;
   officialUrl: string;
   name: string;
+  identityAll: string[];
+  identityNone?: string[];
   notes?: string[];
 }
 
@@ -48,6 +51,10 @@ export type PositionStatus = "FLAT" | "OPEN" | "UNKNOWN";
 export interface Position {
   asset: string;
   status: PositionStatus;
+  openedSession?: string | null;
+  entryUnderlyingPrice?: number | null;
+  priceInvalidation?: number | null;
+  thesisInvalidated?: boolean;
 }
 
 export interface PositionsPayload {
@@ -95,4 +102,38 @@ export function assertHistoryBounds(underlying: Underlying): void {
 
 export function underlyingByAsset(asset: string): Underlying | undefined {
   return loadSecurityMaster().underlyings.find((u) => u.asset === asset);
+}
+
+export function buildShortMonitorUniverseItems(): UniverseItem[] {
+  const master = loadSecurityMaster();
+  const byYahoo = new Map<string, UniverseItem>();
+  for (const underlying of master.underlyings) {
+    byYahoo.set(underlying.yahoo, {
+      id: underlying.id,
+      display: underlying.id,
+      name: underlying.name,
+      yahoo: underlying.yahoo,
+      market: "US",
+      benchmark: underlying.benchmarks[0] ?? "QQQ",
+      group: "空头",
+      notes: underlying.notes.slice(),
+      identity: underlying.identity.slice(),
+    });
+  }
+  for (const tool of loadExecutionTools().tools) {
+    if (byYahoo.has(tool.yahoo)) continue;
+    const underlying = master.underlyings.find((candidate) => candidate.id === tool.underlyingId);
+    byYahoo.set(tool.yahoo, {
+      id: tool.id,
+      display: tool.display,
+      name: tool.name,
+      yahoo: tool.yahoo,
+      market: "US",
+      benchmark: underlying?.benchmarks[0] ?? "QQQ",
+      group: "空头",
+      notes: tool.notes?.slice() ?? [],
+      identity: tool.identityAll.slice(),
+    });
+  }
+  return [...byYahoo.values()];
 }

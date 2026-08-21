@@ -22,6 +22,15 @@ const STATUS = path.join(DATA, "status.json");
 const UNIVERSE_PATH = path.join(DATA, "universe.json");
 const UNIVERSE_LOCK_RESOURCE = path.join(DATA, "locks", "universe.resource");
 
+export interface MorningReportRunAudit {
+  pipelineId: "morning";
+  runId: string;
+  beijingDate: string;
+  generatedAt: string;
+  marketSnapshotId: string;
+  reportAudit: DailyReport["audit"];
+}
+
 export type JobState = "idle" | "running" | "ok" | "error";
 
 export interface JobStatus {
@@ -64,18 +73,119 @@ export async function saveState(state: GenerateState): Promise<void> {
   await fs.writeFile(STATE, JSON.stringify(state, null, 2));
 }
 
-export async function saveReport(report: DailyReport): Promise<void> {
-  await ensureDirs();
-  await fs.writeFile(LATEST, JSON.stringify(report, null, 2));
+function morningReportsRoot(baseDir?: string): string {
+  return path.join(baseDir ?? DATA, "runs", "morning");
+}
+
+function validMorningRunId(runId: string): boolean {
+  return /^morning-[A-Za-z0-9-]+$/.test(runId);
+}
+
+async function readDailyReport(file: string): Promise<DailyReport | null> {
+  try {
+    return JSON.parse(await fs.readFile(file, "utf8")) as DailyReport;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function saveReport(report: DailyReport, baseDir?: string): Promise<void> {
+  const latest = path.join(baseDir ?? DATA, "latest.json");
+  await writeFileAtomic(latest, JSON.stringify(report, null, 2));
+}
+
+export async function saveMorningReportRun(input: {
+  runId: string;
+  report: DailyReport;
+  marketSnapshotId: string;
+  baseDir?: string;
+}): Promise<void> {
+  if (!validMorningRunId(input.runId)) {
+    throw new Error(`invalid morning run id: ${input.runId}`);
+  }
+  const root = morningReportsRoot(input.baseDir);
+  await fs.mkdir(root, { recursive: true });
+
+  const finalDir = path.join(root, input.runId);
+  const existing = await fs.stat(finalDir).catch((error) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  });
+  if (existing) {
+    throw new Error(`morning report run already exists: ${input.runId}`);
+  }
+
+  const claim = path.join(root, `.claim-${input.runId}`);
+  const claimHandle = await fs.open(claim, "wx").catch((error) => {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(`morning report run already exists: ${input.runId}`);
+    }
+    throw error;
+  });
+  await claimHandle.close();
+
+  const tempDir = path.join(root, `.tmp-${input.runId}-${crypto.randomUUID()}`);
+  const audit: MorningReportRunAudit = {
+    pipelineId: "morning",
+    runId: input.runId,
+    beijingDate: input.report.beijingDate,
+    generatedAt: input.report.generatedAt,
+    marketSnapshotId: input.marketSnapshotId,
+    reportAudit: input.report.audit,
+  };
+  try {
+    await fs.mkdir(tempDir);
+    await Promise.all([
+      fs.writeFile(path.join(tempDir, "report.json"), JSON.stringify(input.report, null, 2), {
+        encoding: "utf8",
+        flag: "wx",
+      }),
+      fs.writeFile(path.join(tempDir, "audit.json"), JSON.stringify(audit, null, 2), {
+        encoding: "utf8",
+        flag: "wx",
+      }),
+    ]);
+    await fs.rename(tempDir, finalDir);
+  } catch (error) {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    throw error;
+  } finally {
+    await fs.unlink(claim).catch(() => undefined);
+  }
+
+  await saveReport(input.report, input.baseDir);
+}
+
+export async function loadMorningReportRun(
+  runId: string,
+  baseDir?: string,
+): Promise<DailyReport | null> {
+  if (!validMorningRunId(runId)) return null;
+  return readDailyReport(path.join(morningReportsRoot(baseDir), runId, "report.json"));
+}
+
+export async function loadMorningReportRunAudit(
+  runId: string,
+  baseDir?: string,
+): Promise<MorningReportRunAudit | null> {
+  if (!validMorningRunId(runId)) return null;
+  try {
+    return JSON.parse(
+      await fs.readFile(path.join(morningReportsRoot(baseDir), runId, "audit.json"), "utf8"),
+    ) as MorningReportRunAudit;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function loadLatestReport(): Promise<DailyReport | null> {
-  try {
-    const raw = await fs.readFile(LATEST, "utf8");
-    return JSON.parse(raw) as DailyReport;
-  } catch {
-    return null;
-  }
+  return readDailyReport(LATEST);
 }
 
 export function latestReportPath(): string {

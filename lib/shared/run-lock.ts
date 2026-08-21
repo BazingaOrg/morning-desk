@@ -11,7 +11,8 @@ export type DayRunStatus = "success" | "failed" | "running" | "degraded";
 export type DayRunRecord = {
   status: DayRunStatus;
   runId: string;
-  finishedAt: string;
+  startedAt?: string;
+  finishedAt?: string;
   marketSnapshotId?: string;
   error?: string;
 };

@@ -82,9 +82,17 @@ function actionForOpen(
     reasons.push("thesis-stop");
     return "EXIT";
   }
+  if (input.priceStop) {
+    reasons.push("price-stop");
+    return "EXIT";
+  }
   if (input.timeStop) {
     reasons.push("time-stop");
     return "EXIT";
+  }
+  if (input.blockingVetoes.length > 0) {
+    reasons.push("open-manual-review-required");
+    return "WAIT";
   }
   if (input.ttlExpired) {
     reasons.push("signal-ttl-expired");
