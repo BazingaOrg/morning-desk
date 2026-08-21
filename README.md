@@ -12,7 +12,7 @@ npm run generate   # 拉取最近完整交易日，写入 data/
 npm run dev        # http://localhost:3000
 ```
 
-首次生成约 1–2 分钟。只保留最新一份（`data/latest.json`），1D / 10D / YTD 每次按最新完整收盘重算。页面只展示，不提供手动生成。
+首次生成约 1–2 分钟。`data/latest.json` 是晨报最新入口；每次成功运行同时保存到 `data/runs/morning/<runId>/`，可由 `marketSnapshotId` 追溯。Short Monitor 首次消费快照时会冻结对应 Evidence Packet，失败重试不会混入之后发布的数据。1D / 10D / YTD 每次按最新完整收盘重算。
 
 ## 每天 09:00 自动生成
 
@@ -30,7 +30,17 @@ sudo rm -f /etc/cron.d/morning-desk
 
 ## 部署站点
 
-站点与 scheduler 放同一台有盘机器。Cloudflare 只做 DNS。写入名单前在环境里设置 `DESK_EDIT_TOKEN`。
+站点与 scheduler 放同一台有盘机器。Cloudflare 只做 DNS。在项目根 `.env` 配置：
+
+```dotenv
+DESK_EDIT_TOKEN=名单写入口令
+DEEPSEEK_API_KEY=你的DeepSeekKey
+FRED_API_KEY=可选的FREDKey
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+`DESK_EDIT_TOKEN` 未配置时名单写入 fail closed；`DEEPSEEK_API_KEY` 未配置时空头报告降级为 WAIT；`FRED_API_KEY` 未配置时利率证据记为缺口，不阻断晨报。
 
 ```bash
 cd /opt/morning-desk
@@ -45,7 +55,7 @@ docker compose up -d --build
 
 | 项目 | 规则 |
 | --- | --- |
-| 行情 | 美股：新浪日线；港股：腾讯日线。只用已完成正式交易日 |
+| 行情 | 普通晨报美股使用新浪日线、港股使用腾讯日线；空头底层使用 Yahoo Chart 复权 OHLC 并冻结进 Morning Snapshot，再用腾讯原始代码、长名称、类型、日期与价格做第二来源校验；任一关键链路无法核验即阻断 |
 | 公告 | 美股 SEC EDGAR；港股 HKEX 披露易。对不上原文则不写原因 |
 | 收益 | 1D / 10D 按交易日；YTD 相对上年最后交易日；新上市改列「上市以来」 |
 | 量比 | 当日成交量 ÷ 此前 20 个交易日均量 |

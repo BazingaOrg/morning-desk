@@ -412,8 +412,9 @@ data/short-monitor/
 3. 在版本化证券主数据中写死底层历史边界：`SPCX.historyStartDate = 2026-06-12`，`SNDK.historyStartDate = 2025-02-24`；同时记录相同的 `officialFirstSession`。实现前必须用交易所或发行人官方资料复核一次，如与常量冲突则 fail closed，不自动向前扩展历史。
 4. 价格确认只使用底层 `SPCX`、`SNDK`、`QQQ/NDX` 和 `GLD/XAUUSD`，不使用反向 ETF 自身走势替代底层信号。
 5. 新增独立静态工具名单：`SSPC`、`SNDQ`、`QID`、`PSQ`、`GLL`，记录发行人、交易所、杠杆目标、底层资产、费用、日度复位规则和官方产品链接。
-6. 不调用长桥 API，不核验账户可交易性，不自动换工具。工具名单仅能由受控配置修改。
-7. 现有晨报中的 `SNK` / `GLL` 和 `InverseKind` 保持不动，新名单不回写旧 Universe。
+6. 底层与工具都必须同时核验腾讯原始返回的证券代码、长名称和产品类型，三者任一缺失、未知或冲突都 fail closed，不得用请求 ticker、短名称或名称正则补齐。执行工具使用独立的必含/禁含身份词，不能复用底层身份词；任一身份核验失败都产生阻断缺口，底层不进入价格特征，工具不进入可执行候选。
+7. 不调用长桥 API，不核验账户可交易性，不自动换工具。工具名单仅能由受控配置修改。
+8. 现有晨报中的 `SNK` / `GLL` 和 `InverseKind` 保持不动，新名单不回写旧 Universe。
 
 #### 交付物
 
@@ -457,8 +458,9 @@ data/short-monitor/runs/<runId>/
    - token usage
    - 缓存命中信息
    - 成功、降级或失败状态
-5. 使用原子文件锁或等价的单写入机制，替换“先读取状态再写入”的竞态流程。
-6. 两条流水线有各自的 `latest` 索引和状态，既不共享 running 标记，也不用 AI 结果覆盖晨报结果。
+5. `derived.json` 保存每个资产的最小确定性重放快照：历史切断后的样本数、session/stale/price eligibility、last close、20DMA、1 日收益、ATR14、20 日 swing high、target、R/R、受控持仓输入、持有交易日数、生命周期结果、证据簇、Veto、聚类仲裁和最终决策；不必复制整段行情历史。
+6. 使用原子文件锁或等价的单写入机制，替换“先读取状态再写入”的竞态流程。
+7. 两条流水线有各自的 `latest` 索引和状态，既不共享 running 标记，也不用 AI 结果覆盖晨报结果。
 
 #### 交付物
 
@@ -655,9 +657,11 @@ type EvidenceItem = {
    - 缺失数据
 5. Schema 明确禁止 `score`、`subscore`、`priceConfirmation`、`action`、`state`、`positionSize` 等字段；叙事中的价格判断或交易指令性文字也不参与决策。
 6. 使用运行时 Schema 校验。
-7. JSON 为空、截断或无效时只重试一次。
-8. 第二次失败则进入 AI 降级，不生成伪结论。
-9. 不保存或展示模型的内部思考文本，只保存最终结构化输出、模型名和 token usage。
+7. 将完整输出 JSON 示例直接放入系统消息，禁止仅引用容器内文件名；示例与静态策略一起纳入 Prompt hash 和版本。
+8. Schema 只接受冻结字段，未知字段、未知证据 ID 和跨资产证据引用全部拒绝整份输出。
+9. JSON 为空、截断或无效时只重试一次。
+10. 第二次失败则进入 AI 降级，不生成伪结论。
+11. 不保存或展示模型的内部思考文本，只保存最终结构化输出、模型名和 token usage。
 
 #### 验收标准
 
@@ -695,6 +699,8 @@ type EvidenceItem = {
 7. 外部研究若由用户手动录入，也只能在官方数据独立验证后贡献少量分数；V1 不自动抓取研究报告。
 8. 数据缺失、冲突或过期时自动降级。
 9. 对已有仓位执行 Signal TTL、Time Stop 和退出阶段规则。
+   - Thesis Stop、Price Stop、Time Stop 优先执行。
+   - 未触发上述 Stop 但存在阻断数据时输出 `WAIT` 并要求人工复核，不得在数据不可用时自动 `HOLD`。
 10. 从受控配置读取 `FLAT / OPEN / UNKNOWN` 持仓状态，严格限定 Action：
     - `FLAT`：`WAIT / PREPARE / ENTER`
     - `OPEN`：`WAIT / HOLD / REDUCE / EXIT`
