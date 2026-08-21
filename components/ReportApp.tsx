@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import type { DailyReport, UniversePayload } from "@/lib/types";
 import { intersectReport } from "@/lib/universe-query";
 import { Briefing } from "./Briefing";
@@ -140,6 +141,8 @@ export function ReportApp({
     <div className="app">
       <header className="volnav">
         <nav className="vol-links" aria-label="分卷">
+          <Link href="/" aria-current="true">晨报</Link>
+          <Link href="/short-monitor">空头</Link>
           <a href="#lede" aria-current={active === "lede" ? "true" : undefined}>判断</a>
           <a href="#movers" aria-current={active === "movers" ? "true" : undefined}>异动</a>
           <a href="#us" aria-current={active === "us" ? "true" : undefined}>美股</a>
