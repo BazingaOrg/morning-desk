@@ -19,12 +19,16 @@ export function ShortMonitor({
   report,
   morningStatus,
   shortStatus,
+  error,
   lastPublishedAt,
+  lastSuccessAt,
 }: {
   report: ShortMonitorReport | null;
   morningStatus: string | null;
   shortStatus: string | null;
+  error: string | null;
   lastPublishedAt: string | null;
+  lastSuccessAt: string | null;
 }) {
   const [liveStatus, setLiveStatus] = useState(shortStatus);
   const [starting, setStarting] = useState(false);
@@ -135,8 +139,12 @@ export function ShortMonitor({
               <p className="lede">
                 晨报发布后才会生成这份隔夜快照。DeepSeek 或证据源失败时这里会降级，不会回滚晨报。
               </p>
+              {error ? <p className="status">失败原因：{error}</p> : null}
               {lastPublishedAt ? (
                 <p className="footnote">上次发布 {lastPublishedAt}，仅作历史记录，未作为今日结论。</p>
+              ) : null}
+              {lastSuccessAt ? (
+                <p className="footnote">上次成功 {lastSuccessAt}。</p>
               ) : null}
             </div>
           ) : (
@@ -168,6 +176,14 @@ export function ShortMonitor({
                   <div className="kpi"><small>Trigger</small><b>{focus?.trigger ?? "N/A"}</b></div>
                   <div className="kpi"><small>Stop</small><b>{focus?.stop ?? "N/A"}</b></div>
                   <div className="kpi"><small>Exit</small><b>{focus?.exit ?? "N/A"}</b></div>
+                  <div className="kpi">
+                    <small>工具位</small>
+                    <b>
+                      {focus?.toolStop && focus?.toolTarget
+                        ? `${focus.toolStop} → ${focus.toolTarget}`
+                        : "N/A"}
+                    </b>
+                  </div>
                   <div className="kpi"><small>R/R</small><b>{focus?.rr == null ? "N/A" : focus.rr.toFixed(2)}</b></div>
                   <div className="kpi">
                     <small>数据</small>
@@ -215,8 +231,14 @@ export function ShortMonitor({
                           <td className="mono">{row.score == null ? "N/A" : row.score}</td>
                           <td className="mono">{row.executionTool ?? "None"}</td>
                           <td>{row.trigger ?? "N/A"}</td>
-                          <td className="mono">{row.stop ?? "N/A"}</td>
-                          <td className="mono">{row.exit ?? "N/A"}</td>
+                          <td className="mono">
+                            {row.stop ?? "N/A"}
+                            {row.toolStop ? <div className="name">工具位 {row.toolStop}</div> : null}
+                          </td>
+                          <td className="mono">
+                            {row.exit ?? "N/A"}
+                            {row.toolTarget ? <div className="name">工具位 {row.toolTarget}</div> : null}
+                          </td>
                           <td className="mono">{row.rr == null ? "N/A" : row.rr.toFixed(2)}</td>
                           <td>{row.reason}</td>
                         </tr>
@@ -278,7 +300,11 @@ export function ShortMonitor({
                 <h2>未来 7 天</h2>
                 {report.catalysts7d.length ? report.catalysts7d.map((item) => (
                   <div className="review-item" key={item.id}>
-                    <div><div className="mono">{item.date}</div><div className="muted">{item.kind}</div></div>
+                    <div>
+                      <div className="mono">{item.date} 美东</div>
+                      <div className="mono">{item.beijingDate} 北京</div>
+                      <div className="muted">{item.kind}</div>
+                    </div>
                     <div><a href={item.sourceUrl} target="_blank" rel="noreferrer">{item.title}</a><div className="muted">{item.relevantAssets.join(" · ")}</div></div>
                   </div>
                 )) : <p className="muted">未来 7 天没有已核验节点。</p>}
@@ -286,7 +312,10 @@ export function ShortMonitor({
                   <details>
                     <summary>本周首个交易日 · 展开未来 30 天</summary>
                     {report.catalysts30d.map((item) => (
-                      <p key={`30-${item.id}`}><span className="mono">{item.date}</span>　{item.title}</p>
+                      <p key={`30-${item.id}`}>
+                        <span className="mono">{item.date} 美东 / {item.beijingDate} 北京</span>
+                        {item.title}
+                      </p>
                     ))}
                   </details>
                 ) : null}
