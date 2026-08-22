@@ -17,9 +17,21 @@ export function isAtOrAfterBjNine(now: Date): boolean {
   return hour >= 9;
 }
 
+export const MAX_FAILED_RUN_ATTEMPTS = 3;
+
+export function shouldRetryFailedRun(now: Date, record: DayRunRecord): boolean {
+  const attempts = record.attempts ?? 1;
+  if (attempts >= MAX_FAILED_RUN_ATTEMPTS) return false;
+  const finished = Date.parse(record.finishedAt ?? record.startedAt ?? "");
+  if (!Number.isFinite(finished)) return false;
+  const backoffMs = 10 * 60 * 1000 * 2 ** (attempts - 1);
+  return now.getTime() - finished >= backoffMs;
+}
+
 export function shouldRunMorning(now: Date, morning: DayRunRecord | null): boolean {
   if (!isSchedulerWeekday(now)) return false;
   if (!isAtOrAfterBjNine(now)) return false;
+  if (morning?.status === "failed") return shouldRetryFailedRun(now, morning);
   return morning?.status !== "success";
 }
 
@@ -39,7 +51,7 @@ export function shouldRunShort(
   ) {
     return true;
   }
-  if (short.status === "failed") return true;
+  if (short.status === "failed") return shouldRetryFailedRun(now, short);
   if (short.status !== "running" || !short.startedAt) return false;
   const started = Date.parse(short.startedAt);
   return Number.isFinite(started) && now.getTime() - started >= 20 * 60 * 1000;

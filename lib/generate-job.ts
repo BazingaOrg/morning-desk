@@ -46,6 +46,7 @@ export async function runGenerateBody(): Promise<DailyReport> {
         runId: `morning-fail-${bj}-${Date.now()}`,
         finishedAt: new Date().toISOString(),
         error: message,
+        attempts: (existing?.attempts ?? 0) + 1,
       }).catch(() => undefined);
     }
     throw error;

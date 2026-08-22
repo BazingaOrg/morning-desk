@@ -108,4 +108,33 @@ describe("schedule-policy", () => {
     assert.equal(shouldRunShort(nine, success, failed), true);
     assert.equal(shouldRunShort(nine, success, degraded), false);
   });
+
+  it("failed run backs off and stops after MAX_FAILED_RUN_ATTEMPTS", () => {
+    const finished = Date.parse("2026-01-06T01:00:00.000Z");
+    const record = (attempts?: number): DayRunRecord => ({
+      status: "failed",
+      runId: "r",
+      finishedAt: new Date(finished).toISOString(),
+      error: "boom",
+      ...(attempts === undefined ? {} : { attempts }),
+    });
+
+    const soon = new Date(finished + 5 * 60 * 1000);
+    assert.equal(shouldRunMorning(soon, record()), false);
+    assert.equal(shouldRunMorning(soon, record(1)), false);
+
+    const afterFirstBackoff = new Date(finished + 11 * 60 * 1000);
+    assert.equal(shouldRunMorning(afterFirstBackoff, record()), true);
+    assert.equal(shouldRunMorning(afterFirstBackoff, record(1)), true);
+
+    assert.equal(shouldRunMorning(afterFirstBackoff, record(2)), false);
+    const afterSecondBackoff = new Date(finished + 21 * 60 * 1000);
+    assert.equal(shouldRunMorning(afterSecondBackoff, record(2)), true);
+    assert.equal(shouldRunMorning(afterSecondBackoff, record(3)), false);
+  });
+
+  it("failed short with exhausted attempts is not retried", () => {
+    const nine = bjWall("2026-01-06", 10, 0);
+    assert.equal(shouldRunShort(nine, success, { ...failed, attempts: 3 }), false);
+  });
 });

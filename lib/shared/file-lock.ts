@@ -52,6 +52,45 @@ function retiredPath(lockDir: string, ownerKey: string): string {
   return `${lockDir}.retired-${ownerKey.replace(/[^a-zA-Z0-9_.-]/g, "-")}`;
 }
 
+function recoveryClaimPath(lockDir: string, ownerKey: string): string {
+  return `${lockDir}.recovery-${ownerKey}`;
+}
+
+async function removeRetiredLock(lockDir: string, ownerKey: string): Promise<void> {
+  try {
+    await fs.rm(retiredPath(lockDir, ownerKey), { recursive: true, force: true });
+  } catch {
+    // best-effort cleanup of retired lock directories
+  }
+}
+
+async function claimRecovery(claimPath: string, staleMs: number): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const claim = await fs.open(claimPath, "wx");
+      await claim.close();
+      return true;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+    }
+    let stat;
+    try {
+      stat = await fs.stat(claimPath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw err;
+    }
+    if (!stat.isFile() || Date.now() - stat.mtimeMs < staleMs) return false;
+    // A previous recovery crashed after claiming; take the claim over.
+    try {
+      await fs.unlink(claimPath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") return false;
+    }
+  }
+  return false;
+}
+
 async function retireStaleLock(lockDir: string, staleMs: number): Promise<boolean> {
   const owner = await readOwner(lockDir);
   let stat;
@@ -64,17 +103,12 @@ async function retireStaleLock(lockDir: string, staleMs: number): Promise<boolea
   if (Date.now() - stat.mtimeMs < staleMs) return false;
 
   const ownerKey = owner?.token ?? `orphan-${stat.ino}-${Math.trunc(stat.mtimeMs)}`;
-  if (!owner) {
-    try {
-      const claim = await fs.open(`${lockDir}.recovery-${ownerKey}`, "wx");
-      await claim.close();
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "EEXIST") return false;
-      throw err;
-    }
-  }
+  const claimPath = recoveryClaimPath(lockDir, ownerKey);
+  const claimed = !owner && await claimRecovery(claimPath, staleMs);
+  if (!owner && !claimed) return false;
   try {
     await fs.rename(lockDir, retiredPath(lockDir, ownerKey));
+    await removeRetiredLock(lockDir, ownerKey);
     return true;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
@@ -82,6 +116,10 @@ async function retireStaleLock(lockDir: string, staleMs: number): Promise<boolea
       return false;
     }
     throw err;
+  } finally {
+    if (claimed) {
+      await fs.unlink(claimPath).catch(() => undefined);
+    }
   }
 }
 
@@ -130,6 +168,7 @@ async function createLease(
       if (!owner || owner.token !== token) return;
       try {
         await fs.rename(lockDir, retiredPath(lockDir, token));
+        await removeRetiredLock(lockDir, token);
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code !== "ENOENT" && code !== "EEXIST" && code !== "ENOTEMPTY") {

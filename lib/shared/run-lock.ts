@@ -15,6 +15,7 @@ export type DayRunRecord = {
   finishedAt?: string;
   marketSnapshotId?: string;
   error?: string;
+  attempts?: number;
 };
 
 export type RunLockHandle = {
@@ -105,4 +106,31 @@ export async function writeDayRun(
 ): Promise<void> {
   const file = dayRunPath(pipelineId, beijingDate, baseDir);
   await writeFileAtomic(file, JSON.stringify(record, null, 2));
+}
+
+export async function lastSuccessfulDayRun(
+  pipelineId: PipelineId,
+  baseDir?: string,
+): Promise<DayRunRecord | null> {
+  const dir = path.join(dataRoot(baseDir), "runs", pipelineId);
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+  let latest: DayRunRecord | null = null;
+  for (const name of names.filter((candidate) => candidate.endsWith(".json"))) {
+    const record = await readDayRun(pipelineId, name.slice(0, -5), baseDir);
+    if (
+      !record ||
+      (record.status !== "success" && record.status !== "degraded") ||
+      !record.finishedAt
+    ) {
+      continue;
+    }
+    if (!latest?.finishedAt || record.finishedAt > latest.finishedAt) latest = record;
+  }
+  return latest;
 }

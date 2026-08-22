@@ -71,6 +71,7 @@ export async function claimShortMonitorRun(
       runId: claim.runId,
       startedAt,
       marketSnapshotId: claim.marketSnapshotId,
+      attempts: (current?.attempts ?? 0) + 1,
     }, options.baseDir);
     return { status: "started", claim };
   } catch (error) {
@@ -108,6 +109,9 @@ export async function executeShortMonitorClaim(
       finishedAt: new Date().toISOString(),
       marketSnapshotId: claim.marketSnapshotId,
       error: message,
+      attempts: await readDayRun("short-monitor", claim.beijingDate, claim.baseDir)
+        .then((previous) => previous?.attempts)
+        .catch(() => undefined),
     }, claim.baseDir).catch(() => undefined);
     throw error;
   } finally {
