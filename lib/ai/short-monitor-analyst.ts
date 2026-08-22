@@ -102,7 +102,7 @@ export function sanitizeAnalystOutput(
 }
 
 function defaultModelName(): string {
-  return process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  return process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 }
 
 export async function analyzeShortMonitor(input: {

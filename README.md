@@ -39,10 +39,10 @@ DESK_EDIT_TOKEN=名单写入口令
 DEEPSEEK_API_KEY=你的DeepSeekKey
 FRED_API_KEY=可选的FREDKey
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
-`DESK_EDIT_TOKEN` 未配置时名单写入 fail closed；`DEEPSEEK_API_KEY` 未配置时空头报告降级为 WAIT；`FRED_API_KEY` 未配置时利率证据记为缺口，不阻断晨报。
+`DESK_EDIT_TOKEN` 未配置时名单写入 fail closed；`DEEPSEEK_API_KEY` 未配置时空头报告降级为 WAIT；`FRED_API_KEY` 可不配置——未配置时自动使用 FRED 官方免 key 数据文件（fredgraph.csv），同样产出 RATES/LIQUIDITY 证据，仅在免 key 源也失败时才记为缺口，且不阻断晨报。
 
 ```bash
 cd /opt/morning-desk

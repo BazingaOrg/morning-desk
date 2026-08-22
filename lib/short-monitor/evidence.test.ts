@@ -36,21 +36,52 @@ function fakeSnapshot(partial?: Partial<MarketSnapshot>): MarketSnapshot {
 }
 
 describe("FRED gaps", () => {
-  it("treats a missing API key as blocking for every FRED-relevant asset", async () => {
+  it("falls back to the keyless CSV feed and derives signals when FRED_API_KEY unset", async () => {
     const previous = process.env.FRED_API_KEY;
     delete process.env.FRED_API_KEY;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input: RequestInfo | URL) => {
+      const id = String(input).match(/id=([A-Z0-9]+)/)?.[1] ?? "";
+      const body =
+        id === "WALCL"
+          ? "observation_date,WALCL\n2025-12-24,6700000\n2025-12-31,6710000"
+          : `observation_date,${id}\n2025-12-30,4.60\n2025-12-31,4.70`;
+      return new Response(body, { status: 200 });
+    };
     try {
       const result = await collectFredEvidence(fakeSnapshot());
-      assert.deepEqual(
-        new Set(result.gaps[0]?.affectedAssets),
-        new Set(FRED_AFFECTED_ASSETS),
-      );
-      assert.deepEqual(new Set(FRED_AFFECTED_ASSETS), new Set(["SPCX", "SNDK", "NASDAQ", "GOLD"]));
-      assert.equal(result.gaps[0]?.blocking, true);
-      assert.equal(result.items.length, 0);
+      assert.equal(result.items.length, 3);
+      const dgs = result.items.find((item) => item.id === "ev-fred-DGS10-2025-12-31");
+      assert.ok(dgs);
+      assert.equal(dgs.signal, "BEARISH");
+      assert.equal(dgs.stale, false);
+      assert.ok(dgs.limitations.includes("keyless fredgraph.csv fallback"));
+      assert.deepEqual(result.gaps, []);
     } finally {
       if (previous === undefined) delete process.env.FRED_API_KEY;
       else process.env.FRED_API_KEY = previous;
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("blocks per series when the keyless feed is unavailable", async () => {
+    const previous = process.env.FRED_API_KEY;
+    delete process.env.FRED_API_KEY;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response("", { status: 500 });
+    try {
+      const result = await collectFredEvidence(fakeSnapshot());
+      assert.equal(result.items.length, 0);
+      assert.ok(result.gaps.length >= 3);
+      assert.deepEqual(
+        new Set(result.gaps.flatMap((gap) => gap.affectedAssets)),
+        new Set(FRED_AFFECTED_ASSETS),
+      );
+      assert.ok(result.gaps.every((gap) => gap.blocking));
+    } finally {
+      if (previous === undefined) delete process.env.FRED_API_KEY;
+      else process.env.FRED_API_KEY = previous;
+      globalThis.fetch = originalFetch;
     }
   });
 });

@@ -1,5 +1,5 @@
-import { getJson } from "../../facts/http";
-import { daysBetween } from "../../time";
+import { getJson, getText } from "../../facts/http";
+import { addCalendarDays, daysBetween } from "../../time";
 import type { MarketSnapshot } from "../../shared/market-snapshot";
 import type { AssetId, CollectorResult, EvidenceGap, EvidenceItem } from "../types";
 
@@ -37,39 +37,26 @@ export const FRED_AFFECTED_ASSETS: AssetId[] = [
   ...new Set(SERIES.flatMap((series) => [...series.relevantAssets])),
 ];
 
-type FredObs = {
-  observations?: Array<{ date: string; value: string }>;
-};
+type ObsRow = { date: string; value: number };
 
-async function fetchSeries(
-  seriesId: string,
-  apiKey: string,
-  snapshot: MarketSnapshot,
-): Promise<{ item?: EvidenceItem; gap?: EvidenceGap }> {
-  const meta = SERIES.find((s) => s.id === seriesId)!;
-  const gap = (message: string): EvidenceGap => ({
+function gapFor(meta: (typeof SERIES)[number], message: string): EvidenceGap {
+  return {
     source: "FRED",
     affectedAssets: [...meta.relevantAssets],
     capability: meta.cluster === "LIQUIDITY" ? "LIQUIDITY" : "RATES",
     blocking: true,
     message,
-  });
-  const url =
-    `https://api.stlouisfed.org/fred/series/observations` +
-    `?series_id=${seriesId}&api_key=${encodeURIComponent(apiKey)}` +
-    `&file_type=json&sort_order=desc&limit=5`;
-  const payload = await getJson<FredObs>(url, {}, 12000);
-  if (!payload?.observations?.length) {
-    return { gap: gap(`FRED ${seriesId} unavailable`) };
-  }
-  const observations = payload.observations
-    .map((observation) => ({
-      date: observation.date,
-      value: Number(observation.value),
-    }))
-    .filter((observation) => Number.isFinite(observation.value));
+  };
+}
+
+function buildSeriesEvidence(
+  meta: (typeof SERIES)[number],
+  observations: ObsRow[],
+  snapshot: MarketSnapshot,
+  extraLimitations: string[],
+): { item?: EvidenceItem; gap?: EvidenceGap } {
   if (observations.length < 2) {
-    return { gap: gap(`FRED ${seriesId} needs two numeric observations`) };
+    return { gap: gapFor(meta, `FRED ${meta.id} needs two numeric observations`) };
   }
   const [latest, previous] = observations;
   const age = snapshot.us.lastCompleteYmd
@@ -88,10 +75,9 @@ async function fetchSeries(
     : directionalDelta < -meta.threshold
       ? "BULLISH"
       : "NEUTRAL";
-  const staleGap = stale ? gap(`FRED ${seriesId} stale: latest=${latest.date}`) : undefined;
   return {
     item: {
-      id: `ev-fred-${seriesId}-${latest.date}`,
+      id: `ev-fred-${meta.id}-${latest.date}`,
       asset: "MACRO",
       kind: "fred-observation",
       observedAt: snapshot.generatedAt,
@@ -99,56 +85,112 @@ async function fetchSeries(
       publishedAt: latest.date,
       sourceTier: 1,
       sourceName: "FRED",
-      sourceUrl: `https://fred.stlouisfed.org/series/${seriesId}`,
+      sourceUrl: `https://fred.stlouisfed.org/series/${meta.id}`,
       title: meta.title,
       value: latest.value,
       unit: meta.cluster === "LIQUIDITY" ? "millions USD" : "percent",
-      summary: `${seriesId}=${latest.value} on ${latest.date}; previous=${previous.value} on ${previous.date}; delta=${delta.toFixed(3)}`,
+      summary: `${meta.id}=${latest.value} on ${latest.date}; previous=${previous.value} on ${previous.date}; delta=${delta.toFixed(3)}`,
       verified: !stale,
       stale,
       cluster: meta.cluster,
       signal,
       relevantAssets: [...meta.relevantAssets],
-      limitations: stale ? [`latest observation is ${age} calendar days behind cutoff`] : [],
+      limitations: [
+        ...(stale ? [`latest observation is ${age} calendar days behind cutoff`] : []),
+        ...extraLimitations,
+      ],
     },
-    ...(staleGap ? { gap: staleGap } : {}),
+    ...(stale ? { gap: gapFor(meta, `FRED ${meta.id} stale: latest=${latest.date}`) } : {}),
   };
+}
+
+type FredObs = {
+  observations?: Array<{ date: string; value: string }>;
+};
+
+async function fetchSeriesJson(
+  seriesId: string,
+  apiKey: string,
+): Promise<ObsRow[] | null> {
+  const url =
+    `https://api.stlouisfed.org/fred/series/observations` +
+    `?series_id=${seriesId}&api_key=${encodeURIComponent(apiKey)}` +
+    `&file_type=json&sort_order=desc&limit=5`;
+  const payload = await getJson<FredObs>(url, {}, 12000);
+  if (!payload?.observations?.length) return null;
+  const rows = payload.observations
+    .map((observation) => ({
+      date: observation.date,
+      value: Number(observation.value),
+    }))
+    .filter((observation) => Number.isFinite(observation.value));
+  return rows.length ? rows : null;
+}
+
+export function csvObservations(text: string): ObsRow[] {
+  const rows: ObsRow[] = [];
+  for (const line of text.split(/\r?\n/).slice(1)) {
+    if (!line.trim()) continue;
+    const comma = line.lastIndexOf(",");
+    if (comma <= 0) continue;
+    const date = line.slice(0, comma).trim();
+    const raw = line.slice(comma + 1).trim();
+    const value = Number(raw);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(value)) continue;
+    rows.push({ date, value });
+  }
+  return rows.sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+async function fetchSeriesCsv(
+  seriesId: string,
+  snapshot: MarketSnapshot,
+): Promise<ObsRow[] | null> {
+  const cutoff = snapshot.us.lastCompleteYmd
+    ? addCalendarDays(snapshot.us.lastCompleteYmd, -45)
+    : undefined;
+  const url =
+    `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}` +
+    (cutoff ? `&cosd=${cutoff}` : "");
+  const { ok, text } = await getText(url, {}, 12000);
+  if (!ok || !text) return null;
+  const rows = csvObservations(text);
+  return rows.length >= 2 ? rows.slice(-2).reverse() : (rows.length ? rows : null);
 }
 
 export async function collectFredEvidence(
   snapshot: MarketSnapshot,
 ): Promise<CollectorResult> {
   const apiKey = process.env.FRED_API_KEY;
-  if (!apiKey) {
-    return {
-      items: [],
-      gaps: [{
-        source: "FRED",
-        affectedAssets: [...FRED_AFFECTED_ASSETS],
-        capability: "RATES",
-        blocking: true,
-        message: "FRED_API_KEY unset",
-      }],
-      sourcesUsed: [],
-    };
-  }
-
+  const keyless = !apiKey;
   const items: EvidenceItem[] = [];
   const gaps: EvidenceGap[] = [];
 
   for (const series of SERIES) {
     try {
-      const result = await fetchSeries(series.id, apiKey, snapshot);
+      const observations = apiKey
+        ? await fetchSeriesJson(series.id, apiKey)
+        : await fetchSeriesCsv(series.id, snapshot);
+      if (observations == null) {
+        gaps.push(gapFor(
+          series,
+          `FRED ${series.id} unavailable${keyless ? " (keyless feed)" : ""}`,
+        ));
+        continue;
+      }
+      const result = buildSeriesEvidence(
+        series,
+        observations,
+        snapshot,
+        keyless ? ["keyless fredgraph.csv fallback"] : [],
+      );
       if (result.item) items.push(result.item);
       if (result.gap) gaps.push(result.gap);
     } catch {
-      gaps.push({
-        source: "FRED",
-        affectedAssets: [...series.relevantAssets],
-        capability: "RATES",
-        blocking: true,
-        message: `FRED ${series.id} unavailable`,
-      });
+      gaps.push(gapFor(
+        series,
+        `FRED ${series.id} unavailable${keyless ? " (keyless feed)" : ""}`,
+      ));
     }
   }
 
