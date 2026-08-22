@@ -19,7 +19,7 @@ import type {
   ThesisReviewItem,
 } from "./types";
 import { collectFacts, factsFor, type FactDoc } from "./facts";
-import { HK_REF, US_REF } from "./universe";
+import { HK_REF, HK_REF_ALT, US_REF, US_REF_ALT } from "./universe";
 import { fetchAdjustedUsSeries, fetchUniverseSeries } from "./yahoo";
 import { buildShortMonitorUniverseItems, loadSecurityMaster } from "./short-monitor/master";
 import { loadState, loadThesis, loadUniverse, saveMorningReportRun, saveState } from "./store";
@@ -31,6 +31,17 @@ function lastCompleteDate(bundle: SeriesBundle | undefined, exchangeTz: string):
     bundle.bars.map((bar) => bar.date),
     tz,
   );
+}
+
+export function agreedReferenceSession(
+  primary: SeriesBundle | undefined,
+  alternative: SeriesBundle | undefined,
+  exchangeTz: string,
+): string | null {
+  const fromPrimary = lastCompleteDate(primary, exchangeTz);
+  const fromAlternative = lastCompleteDate(alternative, exchangeTz);
+  if (fromPrimary == null || fromAlternative == null) return fromPrimary ?? fromAlternative;
+  return fromPrimary === fromAlternative ? fromPrimary : null;
 }
 
 function classifyHkFreshness(
@@ -370,9 +381,11 @@ export async function generateReport(): Promise<DailyReport> {
   }));
 
   const usRef = series.get(US_REF);
+  const usRefAlt = series.get(US_REF_ALT);
   const hkRef = series.get(HK_REF);
-  const usSession = lastCompleteDate(usRef, US_TZ);
-  const hkSession = lastCompleteDate(hkRef, HK_TZ);
+  const hkRefAlt = series.get(HK_REF_ALT);
+  const usSession = agreedReferenceSession(usRef, usRefAlt, US_TZ);
+  const hkSession = agreedReferenceSession(hkRef, hkRefAlt, HK_TZ);
 
   const clock = usMarketClock(generatedAt);
   const usFreshness = classifyUsFreshness({

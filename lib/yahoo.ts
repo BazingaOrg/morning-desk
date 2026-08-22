@@ -406,7 +406,7 @@ export async function fetchUniverseSeries(
   items: UniverseItem[],
 ): Promise<Map<string, SeriesBundle>> {
   const extra = yahooSymbols(items).filter((s) => !items.some((i) => i.yahoo === s));
-  const allYahoo = [...new Set(["VOO", "2800.HK", ...items.map((i) => i.yahoo), ...extra])];
+  const allYahoo = [...new Set(["VOO", "QQQ", "2800.HK", "2823.HK", ...items.map((i) => i.yahoo), ...extra])];
 
   let txQuotes = new Map<string, TxQuote>();
   let flags = "";
@@ -493,6 +493,8 @@ export async function fetchUniverseSeries(
           splits: cached.splits,
           dividends: cached.dividends,
           stale: true,
+          staleError: error instanceof Error ? error.message : String(error),
+          lastSuccessAt: cached.fetchedAt,
           adjustmentMode: cached.adjustmentMode ?? (item.market === "HK" ? "forward-adjusted" : "unadjusted"),
         });
       } else {

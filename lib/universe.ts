@@ -1,7 +1,9 @@
 import type { UniverseItem } from "./types";
 
 export const US_REF = "VOO";
+export const US_REF_ALT = "QQQ";
 export const HK_REF = "2800.HK";
+export const HK_REF_ALT = "2823.HK";
 export const GOLD_PROXY = "GLD";
 
 export const BENCHMARKS = [
