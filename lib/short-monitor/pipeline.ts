@@ -10,13 +10,13 @@ import {
 import { decideAsset } from "./decision-validator";
 import { deriveDecisionEvidence } from "./decision-evidence";
 import { loadOrCollectEvidenceContext } from "./evidence";
-import { atr, sma } from "./features";
-import { loadExecutionTools, loadPositions } from "./master";
+import { atr, sma, volumeRatio } from "./features";
+import { loadExecutionTools, loadPositions, loadSecurityMaster } from "./master";
 import { deriveOpenLifecycle } from "./open-lifecycle";
-import { rrFromLevels } from "./risk-reward";
+import { mapLevelToInverseEtf, rrFromLevels } from "./risk-reward";
 import { loadShortMonitorReport, saveShortMonitorRun } from "./run-store";
-import { SCORE_VERSION, isMediumOrAbove } from "./score";
-import { daysBetween } from "../time";
+import { SCORE_VERSION, isMediumOrAbove, marketConfirmationPoints } from "./score";
+import { addCalendarDays, daysBetween } from "../time";
 import { isFirstUsSessionOfWeek } from "../shared/calendar";
 import { priceConfirmed } from "./sources/market";
 import { collectBlockingVetoes } from "./veto";
@@ -168,6 +168,22 @@ export function pickTool(
   return null;
 }
 
+function toolCloseValue(
+  evidence: EvidenceItem[],
+  tool: string,
+  session: string,
+): number | null {
+  const item = evidence.find(
+    (candidate) =>
+      candidate.id === `ev-tool-${tool}-close-${session}` &&
+      candidate.kind === "execution-tool-close" &&
+      candidate.period === session &&
+      candidate.verified &&
+      !candidate.stale,
+  );
+  return typeof item?.value === "number" ? item.value : null;
+}
+
 export function rankAction(assets: AssetDecision[]): Action {
   if (assets.some((asset) => asset.action === "EXIT")) return "EXIT";
   if (assets.some((asset) => asset.action === "REDUCE")) return "REDUCE";
@@ -228,46 +244,51 @@ export function priceFeatureSnapshot(
   bars: DailyBar[],
   lastDate: string,
   eligible: boolean,
+  benchmarkBars: DailyBar[] = [],
 ): {
   lastClose: number | null;
   dma20: number | null;
+  dma50: number | null;
+  dma200: number | null;
   ret1D: number | null;
   atr14: number | null;
   swingHigh20: number | null;
   target2Atr: number | null;
+  volumeRatio20: number | null;
+  rs1dVsBenchmark: number | null;
 } {
-  if (!eligible || !lastDate) {
-    return {
-      lastClose: null,
-      dma20: null,
-      ret1D: null,
-      atr14: null,
-      swingHigh20: null,
-      target2Atr: null,
-    };
-  }
+  const empty = {
+    lastClose: null,
+    dma20: null,
+    dma50: null,
+    dma200: null,
+    ret1D: null,
+    atr14: null,
+    swingHigh20: null,
+    target2Atr: null,
+    volumeRatio20: null,
+    rs1dVsBenchmark: null,
+  };
+  if (!eligible || !lastDate) return empty;
   const series = bars.filter((bar) => bar.date <= lastDate && bar.close != null);
-  if (!series.length || series.at(-1)?.date !== lastDate) {
-    return {
-      lastClose: null,
-      dma20: null,
-      ret1D: null,
-      atr14: null,
-      swingHigh20: null,
-      target2Atr: null,
-    };
-  }
+  if (!series.length || series.at(-1)?.date !== lastDate) return empty;
   const closes = series.map((bar) => bar.close as number);
   const lastClose = closes.at(-1) ?? null;
   const atr14 = atr(bars, 14);
+  const ret1D = periodReturn(bars, lastDate, 1, false);
+  const benchmarkRet1D = periodReturn(benchmarkBars, lastDate, 1, false);
   return {
     lastClose,
     dma20: sma(closes, 20),
-    ret1D: periodReturn(bars, lastDate, 1, false),
+    dma50: sma(closes, 50),
+    dma200: sma(closes, 200),
+    ret1D,
     atr14,
     swingHigh20: swingHigh(bars, lastDate),
     target2Atr:
       lastClose != null && atr14 != null ? lastClose - 2 * atr14 : null,
+    volumeRatio20: volumeRatio(bars, lastDate),
+    rs1dVsBenchmark: ret1D != null && benchmarkRet1D != null ? ret1D - benchmarkRet1D : null,
   };
 }
 
@@ -311,6 +332,7 @@ export async function runShortMonitorPipeline(input: {
   const effectivePositions = [] as Array<"FLAT" | "OPEN" | "UNKNOWN">;
   const derivedEvidence: Record<string, unknown> = {};
 
+  const closedSession = snapshot.us.freshness === "closed";
   for (const asset of ASSETS) {
     const configuredPosition = positions.positions.find((position) => position.asset === asset);
     const view = model?.assets[asset] ?? noneView();
@@ -320,10 +342,14 @@ export async function runShortMonitorPipeline(input: {
       priceEligibility.eligible && lastDate
         ? priceConfirmed(pack.bars, lastDate)
         : false;
+    const underlying = loadSecurityMaster().underlyings.find((candidate) => candidate.asset === asset);
+    const benchmarkYahoo = underlying?.benchmarks[0];
+    const benchmarkBars = benchmarkYahoo ? snapshot.marketSeries?.[benchmarkYahoo]?.bars ?? [] : [];
     const features = priceFeatureSnapshot(
       pack.bars,
       lastDate,
       priceEligibility.eligible,
+      benchmarkBars,
     );
     const lastClose = features.lastClose;
     const stop = features.swingHigh20;
@@ -345,6 +371,38 @@ export async function runShortMonitorPipeline(input: {
       priceEligible: priceEligibility.eligible,
     });
     effectivePositions.push(lifecycle.position);
+    if (closedSession) {
+      rawAssets.push({
+        asset,
+        state: "WATCH",
+        score: null,
+        action: "WAIT",
+        vetoes: ["closed-session"],
+        rr: null,
+        priceConfirmation: null,
+        trigger: null,
+        executionTool: null,
+        stop: null,
+        exit: null,
+        toolStop: null,
+        toolTarget: null,
+        reason: "us-market-closed-fixed-verdict",
+      });
+      derivedEvidence[asset] = {
+        closedVerdict: true,
+        priceEligibility,
+        positionInput: configuredPosition
+          ? {
+              status: configuredPosition.status,
+              openedSession: configuredPosition.openedSession ?? null,
+              entryUnderlyingPrice: configuredPosition.entryUnderlyingPrice ?? null,
+              priceInvalidation: configuredPosition.priceInvalidation ?? null,
+              thesisInvalidated: configuredPosition.thesisInvalidated === true,
+            }
+          : null,
+      };
+      continue;
+    }
     const thesisChanges =
       view.fundamentalShift !== "NONE" || view.expectationGap !== "NONE";
     const evidenceUnverified =
@@ -354,6 +412,19 @@ export async function runShortMonitorPipeline(input: {
     const tool = priceEligibility.eligible
       ? pickTool(asset, packet.items, lastDate || null)
       : null;
+    const toolClose =
+      tool && lastDate ? toolCloseValue(packet.items, tool, lastDate) : null;
+    const toolLeverage = tool
+      ? loadExecutionTools().tools.find((candidate) => candidate.id === tool)?.leverage ?? null
+      : null;
+    const mapLevelForTool = (level: number | null): number | null => {
+      if (lastClose == null || level == null || toolClose == null || toolLeverage == null) {
+        return null;
+      }
+      return mapLevelToInverseEtf(lastClose, level, toolClose, toolLeverage);
+    };
+    const toolStop = mapLevelForTool(stop);
+    const toolTarget = mapLevelForTool(target);
     const priceVetoes = priceRelatedVetoes({
       eligible: priceEligibility.eligible,
       reason: priceEligibility.reason,
@@ -378,11 +449,15 @@ export async function runShortMonitorPipeline(input: {
         ...lifecycle.vetoes,
       ],
     });
+    const sessionKind =
+      snapshot.us.reportKind === "early-close" ? "early-close" : "regular";
     const decided = decideAsset({
       asset,
       model: view,
       priceConfirmation: confirmed,
       independentDrivers: decisionEvidence.independentDrivers,
+      volumeRatio: features.volumeRatio20,
+      sessionKind,
       rr,
       blockingVetoes: vetoes,
       thesisEntry:
@@ -394,8 +469,8 @@ export async function runShortMonitorPipeline(input: {
       position: lifecycle.position,
       thesisStop: lifecycle.thesisStop,
       priceStop: lifecycle.priceStop,
-      timeStop: lifecycle.timeStop,
       ttlExpired: lifecycle.ttlExpired,
+      reResearch: lifecycle.reResearch,
     });
 
     rawAssets.push({
@@ -410,6 +485,8 @@ export async function runShortMonitorPipeline(input: {
       executionTool: tool,
       stop: stop == null ? null : String(stop),
       exit: target == null ? null : String(target),
+      toolStop: toolStop == null ? null : String(toolStop),
+      toolTarget: toolTarget == null ? null : String(toolTarget),
       reason:
         decided.reasons[0] ??
         priceEligibility.reason ??
@@ -447,7 +524,28 @@ export async function runShortMonitorPipeline(input: {
       trustedThesisEvidence: decisionEvidence.trustedThesisEvidence,
       catalystPresent: decisionEvidence.catalystPresent,
       blockingGaps: decisionEvidence.blockingGaps,
+      scoreInput: {
+        fundamentalShift: view.fundamentalShift,
+        expectationGap: view.expectationGap,
+        catalystStrength: view.catalystStrength,
+        priceConfirmation: confirmed,
+        independentDrivers: decisionEvidence.independentDrivers,
+        volumeRatio: features.volumeRatio20,
+        sessionKind,
+      },
+      marketConfirmationPoints: marketConfirmationPoints({
+        priceConfirmation: confirmed,
+        volumeRatio: features.volumeRatio20,
+        sessionKind,
+      }),
       selectedTool: tool,
+      toolLevels: {
+        tool,
+        toolClose,
+        toolLeverage,
+        toolStop,
+        toolTarget,
+      },
       blockingVetoes: vetoes,
       decision: decided,
     };
@@ -489,6 +587,7 @@ export async function runShortMonitorPipeline(input: {
     .map((item) => ({
       id: item.id,
       date: item.period as string,
+      beijingDate: addCalendarDays(item.period as string, 1),
       title: item.title,
       kind: item.kind,
       sourceUrl: item.sourceUrl,
@@ -575,6 +674,7 @@ export async function runShortMonitorPipeline(input: {
       scoreVersion: SCORE_VERSION,
       sourcesUsed: packet.sourcesUsed,
       gaps: packet.gaps,
+      evidenceCacheHit: evidenceContext.cacheHit,
     },
     ...(shortMonitorBaseDir ? { baseDir: shortMonitorBaseDir } : {}),
   });

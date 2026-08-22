@@ -87,6 +87,8 @@ export interface SeriesBundle {
   dividends: DividendEvent[];
   error?: string;
   stale?: boolean;
+  staleError?: string;
+  lastSuccessAt?: string;
   adjustmentMode?: "unadjusted" | "forward-adjusted" | "adjusted";
 }
 

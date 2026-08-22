@@ -1,5 +1,5 @@
 import { identityCheck, periodReturn } from "../../calc";
-import { sma } from "../features";
+import { sma, volumeRatio } from "../features";
 import {
   assertHistoryBounds,
   buildShortMonitorUniverseItems,
@@ -197,6 +197,8 @@ function closeEvidence(
   const asset = underlying.asset as AssetId;
   const summaryParts = [`close=${close}`];
   if (ret1D != null) summaryParts.push(`ret1D=${ret1D}`);
+  const vol20x = volumeRatio(bars, lastDate);
+  if (vol20x != null) summaryParts.push(`vol20x=${vol20x.toFixed(2)}`);
   return {
     id: `ev-mkt-${underlying.id}-close`,
     asset,
@@ -218,6 +220,8 @@ function closeEvidence(
     limitations: [
       `adjustmentMode=${bundle.adjustmentMode ?? "unknown"}`,
       ...(bundle.stale ? ["stale cache"] : []),
+      ...(bundle.staleError ? [`fetch error: ${bundle.staleError}`] : []),
+      ...(bundle.lastSuccessAt ? [`last success fetch: ${bundle.lastSuccessAt}`] : []),
     ],
   };
 }

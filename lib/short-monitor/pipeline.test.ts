@@ -24,6 +24,8 @@ function row(partial: Partial<AssetDecision> & Pick<AssetDecision, "asset">): As
     executionTool: null,
     stop: null,
     exit: null,
+    toolStop: null,
+    toolTarget: null,
     reason: "test",
     ...partial,
   };
@@ -99,6 +101,31 @@ describe("pipeline ranking", () => {
     assert.equal(nasdaq?.executionTool, null);
     assert.ok(nasdaq?.vetoes.includes("cluster-overlap"));
     assert.equal(result.assets.find((asset) => asset.asset === "GOLD")?.action, "ENTER");
+  });
+
+  it("derives volume ratio and relative strength when benchmark bars are present", () => {
+    const assetBars = Array.from({ length: 21 }, (_, index) => ({
+      date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+      open: index === 20 ? 101 : 100,
+      high: index === 20 ? 101 : 100,
+      low: index === 20 ? 101 : 100,
+      close: index === 20 ? 101 : 100,
+      adjClose: index === 20 ? 101 : 100,
+      volume: 1000,
+    }));
+    const benchmarkBars = Array.from({ length: 21 }, (_, index) => ({
+      ...assetBars[index],
+      close: index === 20 ? 99 : 100,
+      open: index === 20 ? 99 : 100,
+      high: index === 20 ? 99 : 100,
+      low: index === 20 ? 99 : 100,
+      adjClose: index === 20 ? 99 : 100,
+    }));
+    const features = priceFeatureSnapshot(assetBars, "2026-07-21", true, benchmarkBars);
+    assert.ok(Math.abs((features.volumeRatio20 ?? 0) - 1) < 1e-9);
+    assert.ok(features.rs1dVsBenchmark !== null && Math.abs(features.rs1dVsBenchmark - 0.02) < 1e-9);
+    assert.equal(priceFeatureSnapshot(assetBars, "2026-07-21", false).volumeRatio20, null);
+    assert.equal(priceFeatureSnapshot(assetBars, "2026-07-21", true).rs1dVsBenchmark, null);
   });
 
   it("archives the minimum deterministic price feature snapshot", () => {

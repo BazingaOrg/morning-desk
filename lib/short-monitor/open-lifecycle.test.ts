@@ -14,7 +14,7 @@ describe("open lifecycle", () => {
     assert.deepEqual(result.vetoes, ["open-lifecycle-unconfigured"]);
   });
 
-  it("uses US trading sessions for TTL and time stop", () => {
+  it("uses US trading sessions for TTL downgrade and re-research", () => {
     assert.equal(tradingSessionsAfter("2026-08-14", "2026-08-19"), 3);
     const base = {
       position: {
@@ -29,12 +29,12 @@ describe("open lifecycle", () => {
       priceEligible: true,
     };
     assert.equal(deriveOpenLifecycle(base).ttlExpired, true);
-    const timeStop = deriveOpenLifecycle({
+    const reResearch = deriveOpenLifecycle({
       ...base,
       currentSession: "2026-08-28",
     });
-    assert.equal(timeStop.timeStop, true);
-    assert.equal(timeStop.ttlExpired, false);
+    assert.equal(reResearch.reResearch, true);
+    assert.equal(reResearch.ttlExpired, false);
   });
 
   it("triggers controlled thesis and aligned price stops but not stale price stops", () => {

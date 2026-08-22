@@ -1,6 +1,6 @@
 import type { AssetId, MonitorState, TierLevel } from "./types";
 
-export const SCORE_VERSION = 1;
+export const SCORE_VERSION = 2;
 
 export const SCORE_WEIGHTS = {
   fundamentalShift: 30,
@@ -9,6 +9,10 @@ export const SCORE_WEIGHTS = {
   marketConfirmation: 25,
   catalyst: 10,
 } as const;
+
+export const MARKET_CONFIRMATION_PRICE_PART = 20;
+export const MARKET_CONFIRMATION_LIQUIDITY_PART = 5;
+export const EARLY_CLOSE_LIQUIDITY_FACTOR = 0.5;
 
 export const TIER_FRACTION: Record<TierLevel, number> = {
   NONE: 0,
@@ -25,7 +29,21 @@ export type ScoreInput = {
   catalystStrength: TierLevel;
   priceConfirmation: boolean;
   independentDrivers: number;
+  volumeRatio?: number | null;
+  sessionKind?: "regular" | "early-close";
 };
+
+export function marketConfirmationPoints(input: Pick<ScoreInput, "priceConfirmation" | "volumeRatio" | "sessionKind">): number {
+  if (!input.priceConfirmation) return 0;
+  let liquidity =
+    input.volumeRatio != null && input.volumeRatio >= 1
+      ? MARKET_CONFIRMATION_LIQUIDITY_PART
+      : 0;
+  if (input.sessionKind === "early-close") {
+    liquidity *= EARLY_CLOSE_LIQUIDITY_FACTOR;
+  }
+  return MARKET_CONFIRMATION_PRICE_PART + liquidity;
+}
 
 function clampDrivers(n: number): number {
   if (!Number.isFinite(n) || n <= 0) return 0;
@@ -43,7 +61,7 @@ export function computeRawScore(input: ScoreInput): number {
     tierPoints(SCORE_WEIGHTS.fundamentalShift, input.fundamentalShift) +
     tierPoints(SCORE_WEIGHTS.expectationGap, input.expectationGap) +
     SCORE_WEIGHTS.industryMacro * macroFraction +
-    SCORE_WEIGHTS.marketConfirmation * (input.priceConfirmation ? 1 : 0) +
+    marketConfirmationPoints(input) +
     tierPoints(SCORE_WEIGHTS.catalyst, input.catalystStrength)
   );
 }

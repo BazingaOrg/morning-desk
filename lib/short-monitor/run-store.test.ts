@@ -82,6 +82,7 @@ describe("short-monitor immutable run store", () => {
         scoreVersion: 1,
         sourcesUsed: ["test"],
         gaps: [],
+        evidenceCacheHit: false,
       },
       baseDir,
     });

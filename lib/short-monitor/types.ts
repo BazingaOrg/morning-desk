@@ -123,6 +123,8 @@ export type AssetDecisionInput = {
   >;
   priceConfirmation: boolean;
   independentDrivers: number;
+  volumeRatio?: number | null;
+  sessionKind?: "regular" | "early-close";
   rr: number | null;
   blockingVetoes: string[];
   thesisEntry: boolean;
@@ -133,6 +135,7 @@ export type AssetDecisionInput = {
   priceStop?: boolean;
   timeStop?: boolean;
   ttlExpired?: boolean;
+  reResearch?: boolean;
 };
 
 export type AssetDecideResult = {
@@ -155,12 +158,15 @@ export type AssetDecision = {
   executionTool: string | null;
   stop: string | null;
   exit: string | null;
+  toolStop: string | null;
+  toolTarget: string | null;
   reason: string;
 };
 
 export type CatalystMapItem = {
   id: string;
   date: string;
+  beijingDate: string;
   title: string;
   kind: string;
   sourceUrl: string;

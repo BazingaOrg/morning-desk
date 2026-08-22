@@ -16,6 +16,8 @@ function asset(assetId: AssetDecision["asset"], action: AssetDecision["action"])
     executionTool: assetId === "GOLD" ? "GLL" : "QID",
     stop: "110",
     exit: "80",
+    toolStop: "90",
+    toolTarget: "120",
     reason: "test",
   };
 }

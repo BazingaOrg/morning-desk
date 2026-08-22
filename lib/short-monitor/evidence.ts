@@ -118,6 +118,7 @@ export async function collectEvidenceContext(
 
 type FrozenEvidenceContext = Awaited<ReturnType<typeof collectEvidenceContext>> & {
   snapshotId: string;
+  cacheHit: boolean;
 };
 
 function frozenEvidencePath(snapshotId: string, baseDir?: string): string {
@@ -156,9 +157,9 @@ export async function loadOrCollectEvidenceContext(
   baseDir?: string,
 ): Promise<FrozenEvidenceContext> {
   const existing = await readFrozenEvidence(snapshot.id, baseDir);
-  if (existing) return existing;
+  if (existing) return { ...existing, cacheHit: true };
   const collected = await collectEvidenceContext(snapshot);
-  const frozen = { snapshotId: snapshot.id, ...collected };
+  const frozen = { snapshotId: snapshot.id, cacheHit: false, ...collected };
   try {
     await writeFileExclusiveAtomic(
       frozenEvidencePath(snapshot.id, baseDir),

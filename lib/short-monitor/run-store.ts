@@ -116,6 +116,7 @@ export type ShortMonitorRunAudit = {
   scoreVersion: number;
   sourcesUsed: string[];
   gaps: unknown[];
+  evidenceCacheHit: boolean;
 };
 
 export async function saveShortMonitorRun(input: {

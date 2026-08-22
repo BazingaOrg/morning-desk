@@ -23,6 +23,13 @@ function thesisClusters(asset: AssetId): Set<EvidenceCluster> {
   return new Set(["RATES", "LIQUIDITY", "POSITIONING"]);
 }
 
+function driverClusters(asset: AssetId): Set<EvidenceCluster> {
+  if (asset === "SPCX" || asset === "SNDK") {
+    return new Set(["RATES", "LIQUIDITY", "POSITIONING"]);
+  }
+  return DRIVER_CLUSTERS;
+}
+
 export function deriveDecisionEvidence(input: {
   asset: AssetId;
   model: AssetModelView;
@@ -45,12 +52,12 @@ export function deriveDecisionEvidence(input: {
   const trusted = cited.filter((item) => item.verified && !item.stale);
   const bearishClusters = [...new Set(
     trusted
-      .filter((item) => item.signal === "BEARISH" && DRIVER_CLUSTERS.has(item.cluster))
+      .filter((item) => item.signal === "BEARISH" && driverClusters(input.asset).has(item.cluster))
       .map((item) => item.cluster),
   )];
   const allowedThesisClusters = thesisClusters(input.asset);
-  const trustedThesisEvidence = bearishClusters.some((cluster) =>
-    allowedThesisClusters.has(cluster),
+  const trustedThesisEvidence = trusted.some(
+    (item) => item.signal === "BEARISH" && allowedThesisClusters.has(item.cluster),
   );
   const catalystPresent = trusted.some((item) => item.cluster === "CATALYST");
   const blockingGaps = input.gaps

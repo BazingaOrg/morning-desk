@@ -33,7 +33,7 @@ export function deriveOpenLifecycle(input: {
   thesisStop: boolean;
   priceStop: boolean;
   ttlExpired: boolean;
-  timeStop: boolean;
+  reResearch: boolean;
   heldSessions: number | null;
 } {
   const position = input.position;
@@ -44,7 +44,7 @@ export function deriveOpenLifecycle(input: {
       thesisStop: false,
       priceStop: false,
       ttlExpired: false,
-      timeStop: false,
+      reResearch: false,
       heldSessions: null,
     };
   }
@@ -55,7 +55,7 @@ export function deriveOpenLifecycle(input: {
       thesisStop: false,
       priceStop: false,
       ttlExpired: false,
-      timeStop: false,
+      reResearch: false,
       heldSessions: null,
     };
   }
@@ -74,7 +74,7 @@ export function deriveOpenLifecycle(input: {
       thesisStop: false,
       priceStop: false,
       ttlExpired: false,
-      timeStop: false,
+      reResearch: false,
       heldSessions: null,
     };
   }
@@ -88,7 +88,7 @@ export function deriveOpenLifecycle(input: {
     thesisStop: position.thesisInvalidated === true,
     priceStop: canUsePrice && input.lastClose! >= position.priceInvalidation,
     ttlExpired: noFollowThrough && heldSessions >= 3 && heldSessions < 10,
-    timeStop: noFollowThrough && heldSessions >= 10,
+    reResearch: noFollowThrough && heldSessions >= 10,
     heldSessions,
   };
 }

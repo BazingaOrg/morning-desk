@@ -80,6 +80,20 @@ describe("deriveDecisionEvidence", () => {
     assert.equal(result.trustedThesisEvidence, true);
   });
 
+  it("never double-counts company fundamentals as macro drivers for single-name assets", () => {
+    const company = { ...item("revenue", "COMPANY", "BEARISH"), relevantAssets: ["SPCX" as const] };
+    const rates = { ...item("rates", "RATES", "BEARISH"), relevantAssets: ["SPCX" as const] };
+    const result = deriveDecisionEvidence({
+      asset: "SPCX",
+      model: model([company.id, rates.id]),
+      items: [company, rates],
+      gaps: [],
+    });
+    assert.equal(result.independentDrivers, 1);
+    assert.deepEqual(new Set(result.bearishClusters), new Set(["RATES"]));
+    assert.equal(result.trustedThesisEvidence, true);
+  });
+
   it("allows real source cluster combinations to reach Nasdaq and Gold driver gates", () => {
     const rates = item("rates", "RATES", "BEARISH");
     const liquidity = item("liquidity", "LIQUIDITY", "BEARISH");

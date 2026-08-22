@@ -24,7 +24,7 @@ function triggeredGates(input: AssetDecisionInput, reasons: string[]): boolean {
     reasons.push("price-confirmation-missing");
     ok = false;
   }
-  if (!isMediumOrAbove(input.model.catalystStrength)) {
+  if (!input.catalystEntry) {
     reasons.push("catalyst-below-medium");
     ok = false;
   }
@@ -90,6 +90,10 @@ function actionForOpen(
     reasons.push("time-stop");
     return "EXIT";
   }
+  if (input.reResearch) {
+    reasons.push("signal-re-research-required");
+    return "WAIT";
+  }
   if (input.blockingVetoes.length > 0) {
     reasons.push("open-manual-review-required");
     return "WAIT";
@@ -114,6 +118,8 @@ export function decideAsset(input: AssetDecisionInput): AssetDecideResult {
     catalystStrength: input.model.catalystStrength,
     priceConfirmation: input.priceConfirmation,
     independentDrivers: input.independentDrivers,
+    volumeRatio: input.volumeRatio,
+    sessionKind: input.sessionKind,
   });
 
   let state = stateFromScore(score);

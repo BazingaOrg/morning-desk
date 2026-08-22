@@ -122,7 +122,17 @@ describe("frozen market input", () => {
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify(frozen));
     try {
-      assert.deepEqual(await loadOrCollectEvidenceContext(snapshot, baseDir), frozen);
+      const loaded = await loadOrCollectEvidenceContext(snapshot, baseDir);
+      assert.equal(loaded.cacheHit, true);
+      assert.deepEqual(
+        {
+          snapshotId: loaded.snapshotId,
+          collectedAt: loaded.collectedAt,
+          packet: loaded.packet,
+          market: loaded.market,
+        },
+        frozen,
+      );
     } finally {
       await fs.rm(baseDir, { recursive: true, force: true });
     }

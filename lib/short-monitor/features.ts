@@ -35,3 +35,17 @@ export function atr(
   }
   return sma(trs, period);
 }
+
+export function volumeRatio(
+  bars: Array<{ date: string; volume: number | null | undefined }>,
+  lastDate: string,
+): number | null {
+  const series = bars.filter(
+    (bar) => bar.date <= lastDate && bar.volume != null && Number.isFinite(bar.volume),
+  );
+  if (series.length < 21 || series.at(-1)?.date !== lastDate) return null;
+  const last = series.at(-1)?.volume;
+  if (last == null || last <= 0) return null;
+  const average = sma(series.slice(0, -1).map((bar) => bar.volume as number), 20);
+  return average == null || average <= 0 ? null : last / average;
+}
