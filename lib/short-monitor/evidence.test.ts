@@ -107,6 +107,45 @@ describe("evidence freezing", () => {
   });
 });
 
+describe("calendar maintenance warnings", () => {
+  it("warns before the static US calendar coverage ends and blocks after", () => {
+    const base = fakeSnapshot();
+    const nearing = collectCalendarEvidence({
+      ...base,
+      us: { ...base.us, wallYmd: "2027-12-02", wallKind: "open", lastCompleteYmd: "2027-12-01" },
+    });
+    assert.ok(
+      nearing.gaps.some((gap) => !gap.blocking && gap.message.includes("coverage ends")),
+    );
+    const expired = collectCalendarEvidence({
+      ...base,
+      us: { ...base.us, wallYmd: "2028-01-07", wallKind: "open", lastCompleteYmd: "2028-01-06" },
+    });
+    assert.ok(
+      expired.gaps.some((gap) => gap.blocking && gap.message.includes("coverage expired")),
+    );
+    const current = collectCalendarEvidence(base);
+    assert.ok(!current.gaps.some((gap) => gap.message.includes("coverage")));
+  });
+
+  it("warns as the catalyst calendar approaches its 45-day staleness window", () => {
+    const nearing = collectCatalystEvidence({
+      ...fakeSnapshot(),
+      beijingDate: "2026-09-20",
+      generatedAt: "2026-09-20T01:00:00.000Z",
+    });
+    assert.ok(
+      nearing.gaps.some((gap) => !gap.blocking && gap.message.includes("approaching staleness")),
+    );
+    const stale = collectCatalystEvidence({
+      ...fakeSnapshot(),
+      beijingDate: "2026-10-10",
+      generatedAt: "2026-10-10T01:00:00.000Z",
+    });
+    assert.ok(stale.gaps.some((gap) => gap.blocking && gap.message.includes("stale")));
+  });
+});
+
 describe("frozen market input", () => {
   it("fails closed instead of refetching when the morning snapshot has no captured series", async () => {
     const result = await collectMarketContext(fakeSnapshot());

@@ -28,6 +28,15 @@ export function loadUsCalendar(): {
   return cached;
 }
 
+export function usCalendarCoverageEnd(): string | null {
+  const { holidays, earlyCloses } = loadUsCalendar();
+  let end: string | null = null;
+  for (const ymd of [...holidays, ...earlyCloses]) {
+    if (!end || ymd > end) end = ymd;
+  }
+  return end;
+}
+
 function weekdayUtc(ymd: string): number {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();

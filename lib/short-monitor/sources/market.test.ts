@@ -140,6 +140,29 @@ describe("short-monitor market identity", () => {
     );
   });
 
+  it("widens tolerance for dividend-adjusted divergences on request", () => {
+    const valid = quote("SNDK", REAL_TENCENT_NAMES.SNDK, "GP");
+    valid.regularMarketPrice = 92;
+    const contract = {
+      expectedKind: "equity" as const,
+      any: ["Sandisk"],
+      expectedSession: "2026-08-20",
+      expectedClose: 100,
+    };
+    assert.equal(
+      verifyMarketIdentity(item("SNDK", "SNDK", ["Sandisk"]), valid, contract).ok,
+      false,
+    );
+    assert.equal(
+      verifyMarketIdentity(
+        item("SNDK", "SNDK", ["Sandisk"]),
+        valid,
+        { ...contract, expectedCloseTolerance: 0.13 },
+      ).ok,
+      true,
+    );
+  });
+
   it("requires Tencent session and close agreement when price evidence is used", () => {
     const valid = quote("SNDK", REAL_TENCENT_NAMES.SNDK, "GP");
     const contract = {

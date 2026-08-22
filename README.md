@@ -28,6 +28,8 @@ sudo rm -f /etc/cron.d/morning-desk
 
 需要 7×24 就把站点放到云服务器。机器休眠则 scheduler 不会触发。
 
+两个交易日历文件需要人工按官方公告更新：`data/shared/us-market-calendar.json`（当前覆盖至 2027 年）与 `data/short-monitor/catalyst-calendar.json`（以 `updatedAt` 为准，45 天陈旧会阻断空头监控的催化剂判断）。覆盖期临近/过期、催化剂日历接近 30 天陈旧时，报告缺口与日志都会提前提示。
+
 ## 部署站点
 
 站点与 scheduler 放同一台有盘机器。Cloudflare 只做 DNS。在项目根 `.env` 配置：

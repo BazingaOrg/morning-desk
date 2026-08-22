@@ -1,5 +1,6 @@
 import type { MarketSnapshot } from "../../shared/market-snapshot";
-import { usMarketClock, usSessionKind } from "../../shared/calendar";
+import { usCalendarCoverageEnd, usMarketClock, usSessionKind } from "../../shared/calendar";
+import { daysBetween } from "../../time";
 import type { AssetId, CollectorResult, EvidenceItem } from "../types";
 
 const SOURCE_NAME = "NYSE/Nasdaq calendar";
@@ -36,6 +37,27 @@ export function collectCalendarEvidence(
   }
 
   const wallKindResolved = wallKind || usSessionKind(wallYmd);
+  const coverageEnd = usCalendarCoverageEnd();
+  if (coverageEnd) {
+    const remaining = daysBetween(wallYmd, coverageEnd);
+    if (remaining < 0) {
+      gaps.push({
+        source: SOURCE_NAME,
+        affectedAssets: ALL_ASSETS,
+        capability: "CALENDAR",
+        blocking: true,
+        message: `US market calendar coverage expired: wall ${wallYmd} beyond ${coverageEnd}`,
+      });
+    } else if (remaining <= 30) {
+      gaps.push({
+        source: SOURCE_NAME,
+        affectedAssets: ALL_ASSETS,
+        capability: "CALENDAR",
+        blocking: false,
+        message: `US market calendar coverage ends ${coverageEnd}; update data/shared/us-market-calendar.json`,
+      });
+    }
+  }
   items.push({
     id: `ev-cal-us-wall-${wallYmd}`,
     asset: "MACRO",

@@ -1,4 +1,5 @@
 import { identityCheck, periodReturn } from "../../calc";
+import { addCalendarDays } from "../../time";
 import { sma, volumeRatio } from "../features";
 import {
   assertHistoryBounds,
@@ -62,6 +63,7 @@ type IdentityContract = {
   none?: string[];
   expectedSession?: string;
   expectedClose?: number;
+  expectedCloseTolerance?: number;
 };
 
 export function verifyMarketIdentity(
@@ -126,9 +128,10 @@ export function verifyMarketIdentity(
     }
     const sourcePrice = quote.regularMarketPrice;
     const expectedClose = contract.expectedClose;
+    const closeTolerance = contract.expectedCloseTolerance ?? 0.05;
     if (
       sourcePrice == null || expectedClose == null || expectedClose <= 0 ||
-      Math.abs(sourcePrice / expectedClose - 1) > 0.05
+      Math.abs(sourcePrice / expectedClose - 1) > closeTolerance
     ) {
       return {
         ok: false,
@@ -326,11 +329,20 @@ export async function collectMarketContext(
       continue;
     }
     const sessionClose = bundle.bars.find((bar) => bar.date === lastDate)?.close;
+    const closeTolerance =
+      sessionClose != null && sessionClose > 0
+        ? 0.05 +
+          bundle.dividends
+            .filter((d) => d.date <= lastDate && d.date >= addCalendarDays(lastDate, -90))
+            .reduce((sum, d) => sum + d.amount, 0) / sessionClose
+        : 0.05;
     const identity = verifyMarketIdentity(universeItem, bundle.quote, {
       expectedKind: underlying.kind,
       any: underlying.identity,
       expectedSession: lastDate,
-      ...(sessionClose != null ? { expectedClose: sessionClose } : {}),
+      ...(sessionClose != null
+        ? { expectedClose: sessionClose, expectedCloseTolerance: closeTolerance }
+        : {}),
     });
     if (!identity.ok) {
       assetPacks[underlying.asset as AssetId].dataConflict = true;

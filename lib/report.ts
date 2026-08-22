@@ -1,5 +1,5 @@
 import { buildRow, sortRows } from "./calc";
-import { usMarketClock } from "./shared/calendar";
+import { usCalendarCoverageEnd, usMarketClock } from "./shared/calendar";
 import {
   classifyUsFreshness,
   saveMarketSnapshot,
@@ -438,6 +438,15 @@ export async function generateReport(): Promise<DailyReport> {
   const hkSession = agreedReferenceSession(hkRef, hkRefAlt, HK_TZ);
 
   const clock = usMarketClock(generatedAt);
+  const calendarCoverageEnd = usCalendarCoverageEnd();
+  if (
+    calendarCoverageEnd &&
+    (clock.wallYmd > calendarCoverageEnd || clock.reportYmd > calendarCoverageEnd)
+  ) {
+    console.warn(
+      `[report] US market calendar coverage ends ${calendarCoverageEnd}; update data/shared/us-market-calendar.json`,
+    );
+  }
   const usFreshness = classifyUsFreshness({
     reportKind: clock.reportKind,
     expectedCompleteSession: clock.lastComplete.ymd,

@@ -67,6 +67,14 @@ export function collectCatalystEvidence(
       blocking: true,
       message: `catalyst calendar stale: updatedAt=${calendar.updatedAt}`,
     });
+  } else if (age >= 30) {
+    gaps.push({
+      source: SOURCE_NAME,
+      affectedAssets: ALL_ASSETS,
+      capability: "CATALYST",
+      blocking: false,
+      message: `catalyst calendar approaching staleness: updatedAt=${calendar.updatedAt}`,
+    });
   }
   for (const event of calendar.events) {
     if (!inNextDays(event.date, from, 30)) continue;
