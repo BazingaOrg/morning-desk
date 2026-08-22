@@ -8,6 +8,7 @@ import {
   SCORE_WEIGHTS,
   TIER_FRACTION,
   computeScore,
+  marketConfirmationPoints,
   stateFromScore,
 } from "./score";
 import type {
@@ -63,6 +64,7 @@ function input(
     priceStop: partial.priceStop,
     timeStop: partial.timeStop,
     ttlExpired: partial.ttlExpired,
+    reResearch: partial.reResearch,
   };
 }
 
@@ -113,6 +115,14 @@ describe("score mapping", () => {
       independentDrivers: 3,
     });
     assert.ok(score <= 49);
+  });
+
+  it("splits market confirmation into price and liquidity, dampened on early close", () => {
+    assert.equal(marketConfirmationPoints({ priceConfirmation: false, volumeRatio: 1 }), 0);
+    assert.equal(marketConfirmationPoints({ priceConfirmation: true, volumeRatio: null }), 20);
+    assert.equal(marketConfirmationPoints({ priceConfirmation: true, volumeRatio: 1 }), 25);
+    assert.equal(marketConfirmationPoints({ priceConfirmation: true, volumeRatio: 0.4 }), 20);
+    assert.equal(marketConfirmationPoints({ priceConfirmation: true, volumeRatio: 1, sessionKind: "early-close" }), 22.5);
   });
 
   it("caps Gold at 69 without three drivers", () => {
@@ -328,6 +338,10 @@ describe("decideAsset fixtures", () => {
     assert.equal(exitPrice.action, "EXIT");
     assert.ok(exitPrice.reasons.includes("price-stop"));
 
+    const reResearch = decideAsset(input({ ...openBase, reResearch: true }));
+    assert.equal(reResearch.action, "WAIT");
+    assert.ok(reResearch.reasons.includes("signal-re-research-required"));
+
     const blocked = decideAsset(input({
       ...openBase,
       blockingVetoes: ["stale-data"],
@@ -344,6 +358,28 @@ describe("decideAsset fixtures", () => {
 
     const wait = decideAsset(input({ position: "OPEN", model: baseModel({}) }));
     assert.equal(wait.action, "WAIT");
+  });
+
+  it("TRIGGERED requires evidence-backed catalyst, not only a model tier", () => {
+    const result = decideAsset(
+      input({
+        asset: "SPCX",
+        model: baseModel({
+          fundamentalShift: "HIGH",
+          expectationGap: "HIGH",
+          catalystStrength: "HIGH",
+        }),
+        priceConfirmation: true,
+        independentDrivers: 3,
+        rr: 2.5,
+        thesisEntry: true,
+        priceEntry: true,
+        catalystEntry: false,
+      }),
+    );
+    assert.notEqual(result.state, "TRIGGERED");
+    assert.notEqual(result.action, "ENTER");
+    assert.ok(result.reasons.some((r) => r.includes("catalyst-below-medium")));
   });
 
   it("UNKNOWN never ENTER", () => {
