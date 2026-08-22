@@ -121,6 +121,10 @@ type FrozenEvidenceContext = Awaited<ReturnType<typeof collectEvidenceContext>> 
   cacheHit: boolean;
 };
 
+export function hasBlockingEvidenceGap(packet: Pick<EvidencePacket, "gaps">): boolean {
+  return packet.gaps.some((gap) => gap.blocking);
+}
+
 function frozenEvidencePath(snapshotId: string, baseDir?: string): string {
   return path.join(
     baseDir ?? path.join(process.cwd(), "data"),
@@ -160,6 +164,7 @@ export async function loadOrCollectEvidenceContext(
   if (existing) return { ...existing, cacheHit: true };
   const collected = await collectEvidenceContext(snapshot);
   const frozen = { snapshotId: snapshot.id, cacheHit: false, ...collected };
+  if (hasBlockingEvidenceGap(collected.packet)) return frozen;
   try {
     await writeFileExclusiveAtomic(
       frozenEvidencePath(snapshot.id, baseDir),
@@ -170,6 +175,6 @@ export async function loadOrCollectEvidenceContext(
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     const winner = await readFrozenEvidence(snapshot.id, baseDir);
     if (!winner) throw new Error(`frozen evidence race lost without winner: ${snapshot.id}`);
-    return winner;
+    return { ...winner, cacheHit: true };
   }
 }

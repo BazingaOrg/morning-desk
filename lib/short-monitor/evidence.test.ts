@@ -7,7 +7,7 @@ import type { MarketSnapshot } from "../shared/market-snapshot";
 import type { DailyBar } from "../types";
 import { collectCalendarEvidence } from "./sources/calendar";
 import { collectCatalystEvidence } from "./sources/catalyst";
-import { loadOrCollectEvidenceContext } from "./evidence";
+import { hasBlockingEvidenceGap, loadOrCollectEvidenceContext } from "./evidence";
 import { collectFredEvidence, FRED_AFFECTED_ASSETS } from "./sources/fred";
 import { collectMarketContext, priceConfirmed } from "./sources/market";
 
@@ -89,6 +89,21 @@ describe("priceConfirmed", () => {
       });
     }
     assert.equal(priceConfirmed(bars, "2025-12-10"), false);
+  });
+});
+
+describe("evidence freezing", () => {
+  it("flags packets carrying blocking gaps so a transient failure self-heals", () => {
+    const gap = (blocking: boolean) => ({
+      source: "SEC",
+      affectedAssets: ["SPCX" as const],
+      capability: "FUNDAMENTAL" as const,
+      blocking,
+      message: "SEC unavailable",
+    });
+    assert.equal(hasBlockingEvidenceGap({ gaps: [gap(true)] }), true);
+    assert.equal(hasBlockingEvidenceGap({ gaps: [gap(false)] }), false);
+    assert.equal(hasBlockingEvidenceGap({ gaps: [] }), false);
   });
 });
 
