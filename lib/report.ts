@@ -20,7 +20,12 @@ import type {
 } from "./types";
 import { collectFacts, factsFor, type FactDoc } from "./facts";
 import { HK_REF, HK_REF_ALT, US_REF, US_REF_ALT } from "./universe";
-import { fetchAdjustedUsSeries, fetchUniverseSeries } from "./yahoo";
+import {
+  fetchAdjustedUsSeries,
+  fetchUniverseSeries,
+  readAdjustedCache,
+  writeAdjustedCache,
+} from "./yahoo";
 import { buildShortMonitorUniverseItems, loadSecurityMaster } from "./short-monitor/master";
 import { loadState, loadThesis, loadUniverse, saveMorningReportRun, saveState } from "./store";
 
@@ -42,6 +47,19 @@ export function agreedReferenceSession(
   const fromAlternative = lastCompleteDate(alternative, exchangeTz);
   if (fromPrimary == null || fromAlternative == null) return fromPrimary ?? fromAlternative;
   return fromPrimary === fromAlternative ? fromPrimary : null;
+}
+
+async function withRetry<T>(work: () => Promise<T>, retries = 1): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await work();
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+    }
+  }
+  throw lastError;
 }
 
 function classifyHkFreshness(
@@ -364,19 +382,51 @@ export async function generateReport(): Promise<DailyReport> {
   const fetchItems = [...new Map(
     [...items, ...shortMonitorItems].map((item) => [item.yahoo, item]),
   ).values()];
-  const series = await fetchUniverseSeries(new Map(), fetchItems);
+  const universeYahoos = new Set(items.map((item) => item.yahoo));
+  const barsSkip = new Set(
+    loadSecurityMaster().underlyings
+      .map((underlying) => underlying.yahoo)
+      .filter((yahoo) => !universeYahoos.has(yahoo)),
+  );
+  const series = await fetchUniverseSeries(new Map(), fetchItems, barsSkip);
   await Promise.all(loadSecurityMaster().underlyings.map(async (underlying) => {
     const current = series.get(underlying.yahoo);
     if (!current) return;
     try {
-      const adjusted = await fetchAdjustedUsSeries(underlying.yahoo);
+      const adjusted = await withRetry(() => fetchAdjustedUsSeries(underlying.yahoo));
       series.set(underlying.yahoo, {
         ...current,
         ...adjusted,
         adjustmentMode: "adjusted",
+        stale: undefined,
+        staleError: undefined,
+        lastSuccessAt: undefined,
       });
-    } catch {
-      series.set(underlying.yahoo, { ...current, adjustmentMode: "unadjusted" });
+      await writeAdjustedCache(underlying.yahoo, {
+        fetchedAt: new Date().toISOString(),
+        beijingDate: bj,
+        quote: current.quote ?? { yahoo: underlying.yahoo, symbol: underlying.yahoo },
+        bars: adjusted.bars,
+        splits: adjusted.splits,
+        dividends: adjusted.dividends,
+        adjustmentMode: "adjusted",
+      });
+    } catch (error) {
+      const cached = await readAdjustedCache(underlying.yahoo);
+      if (cached?.bars.length) {
+        series.set(underlying.yahoo, {
+          ...current,
+          bars: cached.bars,
+          splits: cached.splits,
+          dividends: cached.dividends,
+          adjustmentMode: "adjusted",
+          stale: true,
+          staleError: error instanceof Error ? error.message : String(error),
+          lastSuccessAt: cached.fetchedAt,
+        });
+      } else {
+        series.set(underlying.yahoo, { ...current, adjustmentMode: "unadjusted" });
+      }
     }
   }));
 

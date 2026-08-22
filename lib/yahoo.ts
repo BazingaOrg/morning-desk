@@ -75,6 +75,23 @@ async function writeCache(symbol: string, data: CachedChart): Promise<void> {
   await fs.writeFile(cachePath(symbol), JSON.stringify(data));
 }
 
+function adjustedCachePath(symbol: string): string {
+  return cachePath(`${symbol}.adjusted`);
+}
+
+export async function readAdjustedCache(symbol: string): Promise<CachedChart | null> {
+  try {
+    return JSON.parse(await fs.readFile(adjustedCachePath(symbol), "utf8")) as CachedChart;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeAdjustedCache(symbol: string, data: CachedChart): Promise<void> {
+  await fs.mkdir(CACHE_DIR, { recursive: true });
+  await fs.writeFile(adjustedCachePath(symbol), JSON.stringify(data));
+}
+
 function keepContiguous(bars: DailyBar[]): DailyBar[] {
   if (bars.length < 2) return bars;
   let cut = 0;
@@ -404,6 +421,7 @@ function hasSessionBar(bars: { date: string }[], session: string | null): boolea
 export async function fetchUniverseSeries(
   quotes: Map<string, QuoteSnapshot>,
   items: UniverseItem[],
+  barsSkip?: ReadonlySet<string>,
 ): Promise<Map<string, SeriesBundle>> {
   const extra = yahooSymbols(items).filter((s) => !items.some((i) => i.yahoo === s));
   const allYahoo = [...new Set(["VOO", "QQQ", "2800.HK", "2823.HK", ...items.map((i) => i.yahoo), ...extra])];
@@ -426,6 +444,24 @@ export async function fetchUniverseSeries(
 
   async function loadOne(yahoo: string, allowCache: boolean): Promise<void> {
     const item = items.find((i) => i.yahoo === yahoo) ?? placeholderItem(yahoo);
+    if (barsSkip?.has(yahoo)) {
+      const q = snapshot(
+        yahoo,
+        item.market,
+        txQuotes.get(tencentCode(yahoo)),
+        flags,
+        undefined,
+      );
+      quotes.set(yahoo, q);
+      bundles.set(yahoo, {
+        item,
+        quote: q,
+        bars: [],
+        splits: [],
+        dividends: [],
+      });
+      return;
+    }
     const cached = await readCache(yahoo);
     const expected = expectedSession(item.market);
     const cacheOk =
