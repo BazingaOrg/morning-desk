@@ -25,7 +25,6 @@ function report(beijingDate: string): DailyReport {
     movers: [],
     usRows: [],
     hkRows: [],
-    thesisReviews: [],
     catalysts: [],
     audit: {
       generatedAt: `${beijingDate} 09:00:00`,
@@ -55,7 +54,6 @@ describe("morning report immutable run store", () => {
     await saveMorningReportRun({
       runId,
       report: payload,
-      marketSnapshotId: "ms-morning-2026-08-21-immutable",
       baseDir,
     });
 
@@ -66,7 +64,6 @@ describe("morning report immutable run store", () => {
       runId,
       beijingDate: "2026-08-21",
       generatedAt: "2026-08-21 09:00:00",
-      marketSnapshotId: "ms-morning-2026-08-21-immutable",
       reportAudit: payload.audit,
     });
   });
@@ -77,13 +74,12 @@ describe("morning report immutable run store", () => {
     await saveMorningReportRun({
       runId,
       report: original,
-      marketSnapshotId: "ms-original",
       baseDir,
     });
 
     const replacement = { ...report("2026-08-22"), title: "replacement" };
     await assert.rejects(
-      () => saveMorningReportRun({ runId, report: replacement, marketSnapshotId: "ms-replacement", baseDir }),
+      () => saveMorningReportRun({ runId, report: replacement, baseDir }),
       /already exists/,
     );
 

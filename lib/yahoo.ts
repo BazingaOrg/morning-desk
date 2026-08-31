@@ -8,7 +8,7 @@ import type {
   SplitEvent,
   UniverseItem,
 } from "./types";
-import { cacheHasCompleteSession, beijingDate, HK_TZ, lastCompleteSessionDate, US_TZ, ymdInZone } from "./time";
+import { cacheHasCompleteSession, beijingDate, HK_TZ, lastCompleteSessionDate, US_TZ } from "./time";
 import { yahooSymbols } from "./universe";
 
 const CACHE_DIR = path.join(process.cwd(), "data", "cache");
@@ -73,23 +73,6 @@ async function readCache(symbol: string): Promise<CachedChart | null> {
 async function writeCache(symbol: string, data: CachedChart): Promise<void> {
   await fs.mkdir(CACHE_DIR, { recursive: true });
   await fs.writeFile(cachePath(symbol), JSON.stringify(data));
-}
-
-function adjustedCachePath(symbol: string): string {
-  return cachePath(`${symbol}.adjusted`);
-}
-
-export async function readAdjustedCache(symbol: string): Promise<CachedChart | null> {
-  try {
-    return JSON.parse(await fs.readFile(adjustedCachePath(symbol), "utf8")) as CachedChart;
-  } catch {
-    return null;
-  }
-}
-
-export async function writeAdjustedCache(symbol: string, data: CachedChart): Promise<void> {
-  await fs.mkdir(CACHE_DIR, { recursive: true });
-  await fs.writeFile(adjustedCachePath(symbol), JSON.stringify(data));
 }
 
 function keepContiguous(bars: DailyBar[]): DailyBar[] {
@@ -196,80 +179,6 @@ async function fetchUsBars(yahoo: string): Promise<DailyBar[]> {
   return keepContiguous(bars.filter((b) => Number.isFinite(b.close)));
 }
 
-type YahooChartPayload = {
-  chart?: {
-    result?: Array<{
-      timestamp?: number[];
-      indicators?: {
-        quote?: Array<{
-          open?: Array<number | null>;
-          high?: Array<number | null>;
-          low?: Array<number | null>;
-          close?: Array<number | null>;
-          volume?: Array<number | null>;
-        }>;
-        adjclose?: Array<{ adjclose?: Array<number | null> }>;
-      };
-      events?: {
-        splits?: Record<string, { date?: number; numerator?: number; denominator?: number; splitRatio?: string }>;
-        dividends?: Record<string, { date?: number; amount?: number }>;
-      };
-    }>;
-    error?: unknown;
-  };
-};
-
-export async function fetchAdjustedUsSeries(yahoo: string, options: FetchTextOptions = {}): Promise<{
-  bars: DailyBar[];
-  splits: SplitEvent[];
-  dividends: DividendEvent[];
-}> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahoo)}` +
-    "?range=2y&interval=1d&events=div%2Csplits&includeAdjustedClose=true";
-  const payload = JSON.parse(
-    new TextDecoder("utf-8").decode(await fetchText(url, options)),
-  ) as YahooChartPayload;
-  const result = payload.chart?.result?.[0];
-  const timestamps = result?.timestamp;
-  const quote = result?.indicators?.quote?.[0];
-  const adjusted = result?.indicators?.adjclose?.[0]?.adjclose;
-  if (!timestamps?.length || !quote || !adjusted) {
-    throw new Error(`Adjusted market data unavailable for ${yahoo}`);
-  }
-  const bars = timestamps.flatMap((timestamp, index): DailyBar[] => {
-    const close = quote.close?.[index];
-    const adjClose = adjusted[index];
-    if (close == null || adjClose == null || !Number.isFinite(close) || !Number.isFinite(adjClose)) {
-      return [];
-    }
-    const date = ymdInZone(new Date(timestamp * 1000), US_TZ);
-    const factor = adjClose / close;
-    const adjustedPrice = (value: number | null | undefined) =>
-      value == null || !Number.isFinite(value) ? null : value * factor;
-    return [{
-      date,
-      open: adjustedPrice(quote.open?.[index]),
-      high: adjustedPrice(quote.high?.[index]),
-      low: adjustedPrice(quote.low?.[index]),
-      close: adjClose,
-      adjClose,
-      volume: quote.volume?.[index] ?? null,
-    }];
-  });
-  if (!bars.length) throw new Error(`Adjusted market data unavailable for ${yahoo}`);
-  const splits = Object.values(result.events?.splits ?? {}).flatMap((event): SplitEvent[] => {
-    if (!event.date) return [];
-    const ratio = event.splitRatio ??
-      (event.numerator && event.denominator ? `${event.numerator}:${event.denominator}` : "unknown");
-    return [{ date: ymdInZone(new Date(event.date * 1000), US_TZ), ratio }];
-  });
-  const dividends = Object.values(result.events?.dividends ?? {}).flatMap((event): DividendEvent[] => {
-    if (!event.date || event.amount == null || !Number.isFinite(event.amount)) return [];
-    return [{ date: ymdInZone(new Date(event.date * 1000), US_TZ), amount: event.amount }];
-  });
-  return { bars, splits, dividends };
-}
-
 async function fetchHkBars(yahoo: string): Promise<{ bars: DailyBar[]; name?: string; flags?: string }> {
   const code = tencentCode(yahoo);
   const url = `${TX_HK}?param=${code},day,,,400,qfq`;
@@ -362,6 +271,26 @@ function parseLooseTime(value?: string): string | undefined {
   return undefined;
 }
 
+export function normalizeTencentQuoteType(
+  market: "US" | "HK",
+  sourceSecurityType?: string,
+): "ETF" | "EQUITY" | "NONE" {
+  if (sourceSecurityType === "GP-ETF") return "ETF";
+  if (sourceSecurityType === "GP") return "EQUITY";
+  if (market === "HK" && sourceSecurityType === "0") return "EQUITY";
+  return "NONE";
+}
+
+function normalizeCachedQuote(
+  market: "US" | "HK",
+  quote: QuoteSnapshot,
+): QuoteSnapshot {
+  return {
+    ...quote,
+    quoteType: normalizeTencentQuoteType(market, quote.sourceSecurityType),
+  };
+}
+
 function snapshot(
   yahoo: string,
   market: "US" | "HK",
@@ -371,12 +300,6 @@ function snapshot(
   fallbackName?: string,
 ): QuoteSnapshot {
   const sourceSecurityType = q?.securityType.trim();
-  const quoteType =
-    sourceSecurityType === "GP-ETF"
-      ? "ETF"
-      : sourceSecurityType === "GP"
-        ? "EQUITY"
-        : "NONE";
   return {
     yahoo,
     symbol: q?.code || yahoo,
@@ -385,7 +308,7 @@ function snapshot(
     longName: q?.longName || undefined,
     sourceLongName: q?.longName || undefined,
     sourceSecurityType: sourceSecurityType || undefined,
-    quoteType,
+    quoteType: normalizeTencentQuoteType(market, sourceSecurityType),
     exchange: market === "HK" ? "HKG" : "US",
     currency: market === "HK" ? "HKD" : "USD",
     marketState: flags ? phaseFromFlags(flags, market) : "CLOSED",
@@ -471,13 +394,10 @@ export async function fetchUniverseSeries(
       hasSessionBar(cached.bars, expected);
 
     if (cacheOk && cached) {
-      const q = snapshot(
-        yahoo,
-        item.market,
-        txQuotes.get(tencentCode(yahoo)),
-        flags,
-        cached.bars[0]?.date,
-      );
+      const live = txQuotes.get(tencentCode(yahoo));
+      const q = live
+        ? snapshot(yahoo, item.market, live, flags, cached.bars[0]?.date)
+        : normalizeCachedQuote(item.market, cached.quote);
       quotes.set(yahoo, q);
       bundles.set(yahoo, {
         item,
@@ -494,8 +414,7 @@ export async function fetchUniverseSeries(
       const pack =
         item.market === "HK" ? await fetchHkBars(yahoo) : { bars: await fetchUsBars(yahoo) };
       const bars = pack.bars;
-      const splits =
-        item.market === "US" && !item.inverse ? detectSplits(bars.slice(-260)) : [];
+      const splits = item.market === "US" ? detectSplits(bars.slice(-260)) : [];
       const dividends: DividendEvent[] = [];
       const q = snapshot(
         yahoo,
@@ -521,10 +440,11 @@ export async function fetchUniverseSeries(
       }
     } catch (error) {
       if (cached?.bars.length) {
-        quotes.set(yahoo, cached.quote);
+        const q = normalizeCachedQuote(item.market, cached.quote);
+        quotes.set(yahoo, q);
         bundles.set(yahoo, {
           item,
-          quote: cached.quote,
+          quote: q,
           bars: cached.bars,
           splits: cached.splits,
           dividends: cached.dividends,

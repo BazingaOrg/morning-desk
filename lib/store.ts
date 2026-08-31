@@ -3,7 +3,6 @@ import path from "node:path";
 import type {
   DailyReport,
   GenerateState,
-  ThesisRecord,
   UniverseItem,
   UniversePayload,
 } from "./types";
@@ -16,7 +15,6 @@ export { intersectReport, reportIds } from "./universe-query";
 
 const DATA = path.join(process.cwd(), "data");
 const STATE = path.join(DATA, "state.json");
-const THESIS = path.join(DATA, "thesis.json");
 const LATEST = path.join(DATA, "latest.json");
 const STATUS = path.join(DATA, "status.json");
 const UNIVERSE_PATH = path.join(DATA, "universe.json");
@@ -27,7 +25,6 @@ export interface MorningReportRunAudit {
   runId: string;
   beijingDate: string;
   generatedAt: string;
-  marketSnapshotId: string;
   reportAudit: DailyReport["audit"];
 }
 
@@ -42,21 +39,6 @@ export interface JobStatus {
 
 async function ensureDirs() {
   await fs.mkdir(DATA, { recursive: true });
-}
-
-export async function loadThesis(): Promise<Record<string, ThesisRecord>> {
-  try {
-    const raw = await fs.readFile(THESIS, "utf8");
-    const parsed = JSON.parse(raw) as Record<string, ThesisRecord | string>;
-    const out: Record<string, ThesisRecord> = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (key.startsWith("_") || typeof value !== "object" || !value) continue;
-      out[key] = value;
-    }
-    return out;
-  } catch {
-    return {};
-  }
 }
 
 export async function loadState(): Promise<GenerateState> {
@@ -100,7 +82,6 @@ export async function saveReport(report: DailyReport, baseDir?: string): Promise
 export async function saveMorningReportRun(input: {
   runId: string;
   report: DailyReport;
-  marketSnapshotId: string;
   baseDir?: string;
 }): Promise<void> {
   if (!validMorningRunId(input.runId)) {
@@ -133,7 +114,6 @@ export async function saveMorningReportRun(input: {
     runId: input.runId,
     beijingDate: input.report.beijingDate,
     generatedAt: input.report.generatedAt,
-    marketSnapshotId: input.marketSnapshotId,
     reportAudit: input.report.audit,
   };
   try {
@@ -297,7 +277,6 @@ export function buildUniversePayloadFrom(
   const referenced = new Set<string>([US_REF, HK_REF]);
   for (const item of items) {
     if (item.benchmark) referenced.add(item.benchmark);
-    if (item.underlying) referenced.add(item.underlying);
   }
   return {
     items,

@@ -34,25 +34,3 @@ export function shouldRunMorning(now: Date, morning: DayRunRecord | null): boole
   if (morning?.status === "failed") return shouldRetryFailedRun(now, morning);
   return morning?.status !== "success";
 }
-
-export function shouldRunShort(
-  now: Date,
-  morning: DayRunRecord | null,
-  short: DayRunRecord | null,
-): boolean {
-  if (!isSchedulerWeekday(now)) return false;
-  if (!isAtOrAfterBjNine(now)) return false;
-  if (morning?.status !== "success") return false;
-  if (short === null) return true;
-  if (
-    morning.marketSnapshotId &&
-    short.marketSnapshotId &&
-    short.marketSnapshotId !== morning.marketSnapshotId
-  ) {
-    return true;
-  }
-  if (short.status === "failed") return shouldRetryFailedRun(now, short);
-  if (short.status !== "running" || !short.startedAt) return false;
-  const started = Date.parse(short.startedAt);
-  return Number.isFinite(started) && now.getTime() - started >= 20 * 60 * 1000;
-}

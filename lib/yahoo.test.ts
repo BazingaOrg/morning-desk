@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { fetchAdjustedUsSeries, fetchText } from "./yahoo";
+import { fetchText, normalizeTencentQuoteType } from "./yahoo";
+
+describe("Tencent quote type normalization", () => {
+  it("recognizes Tencent HK stock type zero without weakening US checks", () => {
+    assert.equal(normalizeTencentQuoteType("HK", "0"), "EQUITY");
+    assert.equal(normalizeTencentQuoteType("US", "0"), "NONE");
+    assert.equal(normalizeTencentQuoteType("US", "GP"), "EQUITY");
+    assert.equal(normalizeTencentQuoteType("US", "GP-ETF"), "ETF");
+  });
+});
 
 describe("market data HTTP boundaries", () => {
   it("applies its headers, no-store policy, and abort signal", async () => {
@@ -68,35 +77,5 @@ describe("market data HTTP boundaries", () => {
         return true;
       },
     );
-  });
-});
-
-describe("adjusted US series", () => {
-  it("uses adjusted close and applies the adjustment factor to OHLC", async () => {
-    const payload = {
-      chart: {
-        result: [{
-          timestamp: [Date.parse("2026-08-20T20:00:00Z") / 1000],
-          indicators: {
-            quote: [{ open: [100], high: [110], low: [90], close: [100], volume: [1000] }],
-            adjclose: [{ adjclose: [50] }],
-          },
-          events: {},
-        }],
-        error: null,
-      },
-    };
-    const result = await fetchAdjustedUsSeries("TEST", {
-      fetchImpl: async () => new Response(JSON.stringify(payload)),
-    });
-    assert.deepEqual(result.bars[0], {
-      date: "2026-08-20",
-      open: 50,
-      high: 55,
-      low: 45,
-      close: 50,
-      adjClose: 50,
-      volume: 1000,
-    });
   });
 });

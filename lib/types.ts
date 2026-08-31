@@ -1,4 +1,4 @@
-import type { SessionFreshness } from "./shared/market-snapshot";
+import type { SessionFreshness } from "./shared/session";
 
 export type Market = "US" | "HK";
 
@@ -9,13 +9,7 @@ export type VolumeClass =
   | "温和缩量"
   | "明显缩量";
 
-export type ThesisStatus = "↑强化" | "→未变" | "↓削弱" | "？未建立";
-
-export type ReviewLevel = "正常跟踪" | "重点关注" | "重新评估";
-
-export type RowTag = "需重新评估" | "重点关注" | "明显走强" | "正常";
-
-export type InverseKind = "spacex-short-2x" | "gold-short-2x";
+export type RowTag = "数据异常" | "重点关注" | "明显走强" | "正常";
 
 export interface UniverseItem {
   id: string;
@@ -27,16 +21,7 @@ export interface UniverseItem {
   group: string;
   notes: string[];
   identity: string[];
-  inverse?: InverseKind;
-  underlying?: string;
   limitedExcess?: boolean;
-}
-
-export interface ThesisRecord {
-  thesis: string;
-  status: ThesisStatus;
-  review: ReviewLevel;
-  updatedAt?: string;
 }
 
 export interface DailyBar {
@@ -92,17 +77,6 @@ export interface SeriesBundle {
   adjustmentMode?: "unadjusted" | "forward-adjusted" | "adjusted";
 }
 
-export interface InverseStats {
-  kind: InverseKind;
-  underlying: string;
-  underlyingName: string;
-  target1D: number | null;
-  actual1D: number | null;
-  deviation1D: number | null;
-  underlying1D: number | null;
-  note: string;
-}
-
 export interface SecurityRow {
   id: string;
   display: string;
@@ -123,9 +97,6 @@ export interface SecurityRow {
   volumeRatio: number | null;
   volumeClass: VolumeClass | null;
   dist52W: number | null;
-  thesisStatus: ThesisStatus;
-  thesis: string;
-  review: ReviewLevel;
   tag: RowTag;
   sessionDate: string | null;
   listed: boolean;
@@ -135,7 +106,6 @@ export interface SecurityRow {
   splitNote?: string;
   usedAdjusted: boolean;
   notes: string[];
-  inverse?: InverseStats;
   limitedExcess?: boolean;
   moverReasons: string[];
   sources: { label: string; href: string }[];
@@ -164,16 +134,6 @@ export interface Catalyst {
   confirmed: boolean;
   detail: string;
   href?: string;
-}
-
-export interface ThesisReviewItem {
-  id: string;
-  display: string;
-  name: string;
-  status: ThesisStatus;
-  review: ReviewLevel;
-  thesis: string;
-  why: string;
 }
 
 export interface MarketStamp {
@@ -206,7 +166,6 @@ export interface DailyReport {
   movers: MoverLine[];
   usRows: SecurityRow[];
   hkRows: SecurityRow[];
-  thesisReviews: ThesisReviewItem[];
   catalysts: Catalyst[];
   audit: {
     generatedAt: string;

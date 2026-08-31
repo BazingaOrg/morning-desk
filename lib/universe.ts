@@ -122,21 +122,6 @@ export const SEED_UNIVERSE: UniverseItem[] = [
     identity: ["AeroVironment"],
   },
   {
-    id: "SNK",
-    display: "SNK",
-    name: "GraniteShares 2x Short SpaceX Daily ETF",
-    yahoo: "SNK",
-    market: "US",
-    benchmark: "SPCX",
-    group: "反向产品",
-    notes: [
-      "目标为 SPCX 单日收益的 -2 倍，不得把多日累计解释成标的累计的简单 -2 倍。",
-    ],
-    identity: ["GraniteShares", "Short", "SpaceX"],
-    inverse: "spacex-short-2x",
-    underlying: "SPCX",
-  },
-  {
     id: "HOOD",
     display: "HOOD",
     name: "Robinhood",
@@ -146,21 +131,6 @@ export const SEED_UNIVERSE: UniverseItem[] = [
     group: "金融科技",
     notes: [],
     identity: ["Robinhood"],
-  },
-  {
-    id: "GLL",
-    display: "GLL",
-    name: "ProShares UltraShort Gold",
-    yahoo: "GLL",
-    market: "US",
-    benchmark: "GLD",
-    group: "反向产品",
-    notes: [
-      "目标为黄金指数单日收益的 -2 倍；多日收益存在路径依赖与波动损耗。",
-    ],
-    identity: ["UltraShort", "Gold"],
-    inverse: "gold-short-2x",
-    underlying: "GLD",
   },
   {
     id: "NVO",
@@ -625,7 +595,6 @@ export function yahooSymbols(items: UniverseItem[]): string[] {
   for (const item of items) {
     set.add(item.yahoo);
     set.add(item.benchmark);
-    if (item.underlying) set.add(item.underlying);
   }
   for (const bench of BENCHMARKS) set.add(bench);
   return [...set];

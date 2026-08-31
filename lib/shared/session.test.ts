@@ -1,6 +1,56 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { nextSessionWaterline } from "./session";
+import { classifyUsFreshness, nextSessionWaterline } from "./session";
+
+describe("classifyUsFreshness", () => {
+  it("classifies closed, unavailable, and stale sessions", () => {
+    assert.equal(classifyUsFreshness({
+      reportKind: "closed",
+      expectedCompleteSession: "2025-12-31",
+      barSession: "2025-12-31",
+      lastSuccessSession: "2025-12-31",
+      usedStaleCache: false,
+    }), "closed");
+    assert.equal(classifyUsFreshness({
+      reportKind: "open",
+      expectedCompleteSession: "2026-01-05",
+      barSession: null,
+      lastSuccessSession: null,
+      usedStaleCache: false,
+    }), "unavailable");
+    assert.equal(classifyUsFreshness({
+      reportKind: "open",
+      expectedCompleteSession: "2026-01-05",
+      barSession: "2026-01-02",
+      lastSuccessSession: "2026-01-02",
+      usedStaleCache: false,
+    }), "stale");
+  });
+
+  it("classifies unchanged, new, and early-close sessions", () => {
+    const base = {
+      expectedCompleteSession: "2026-01-05",
+      barSession: "2026-01-05",
+      usedStaleCache: false,
+    };
+    assert.equal(classifyUsFreshness({
+      ...base,
+      reportKind: "open",
+      lastSuccessSession: "2026-01-05",
+    }), "unchanged");
+    assert.equal(classifyUsFreshness({
+      ...base,
+      reportKind: "open",
+      lastSuccessSession: "2026-01-02",
+    }), "new");
+    assert.equal(classifyUsFreshness({
+      ...base,
+      reportKind: "early-close",
+      completeKind: "early-close",
+      lastSuccessSession: "2026-01-02",
+    }), "early-close");
+  });
+});
 
 describe("nextSessionWaterline", () => {
   it("advances only on new or early-close", () => {

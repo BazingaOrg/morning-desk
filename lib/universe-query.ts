@@ -14,7 +14,6 @@ export function intersectReport(report: DailyReport, ids: Set<string>): DailyRep
     usRows: report.usRows.filter((row) => ids.has(row.id)),
     hkRows: report.hkRows.filter((row) => ids.has(row.id)),
     movers: report.movers.filter((row) => ids.has(row.id)),
-    thesisReviews: report.thesisReviews.filter((row) => ids.has(row.id)),
     catalysts: report.catalysts.filter((row) => ids.has(row.id)),
   };
 }

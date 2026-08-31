@@ -1,8 +1,10 @@
+import { loadLocalEnv } from "../lib/env";
 import { runGenerate } from "../lib/generate-job";
-import { shouldRunMorning, shouldRunShort } from "../lib/shared/schedule-policy";
+import { shouldRunMorning } from "../lib/shared/schedule-policy";
 import { readDayRun } from "../lib/shared/run-lock";
-import { runShortMonitorStub } from "../lib/short-monitor/job";
 import { beijingDate } from "../lib/time";
+
+loadLocalEnv();
 
 function schedulerNow(): Date {
   const raw = process.env.SCHEDULER_NOW;
@@ -20,8 +22,7 @@ function intervalMs(): number {
 
 async function tick(now: Date): Promise<void> {
   const bj = beijingDate(now);
-  let morning = await readDayRun("morning", bj);
-  const short = await readDayRun("short-monitor", bj);
+  const morning = await readDayRun("morning", bj);
 
   if (shouldRunMorning(now, morning)) {
     console.log(`[scheduler] ${bj} run morning`);
@@ -30,7 +31,6 @@ async function tick(now: Date): Promise<void> {
       console.log(
         `[scheduler] morning ok: 美股 ${report.us.label} ｜ 港股 ${report.hk.label}`,
       );
-      morning = await readDayRun("morning", bj);
     } catch (error) {
       console.error(
         `[scheduler] morning failed:`,
@@ -40,20 +40,6 @@ async function tick(now: Date): Promise<void> {
     }
   }
 
-  if (shouldRunShort(now, morning, short)) {
-    console.log(`[scheduler] ${bj} run short-monitor`);
-    try {
-      const result = await runShortMonitorStub(now);
-      console.log(
-        `[scheduler] short-monitor ${result.status}: ${result.reason}`,
-      );
-    } catch (error) {
-      console.error(
-        `[scheduler] short-monitor failed:`,
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
 }
 
 async function main(): Promise<void> {

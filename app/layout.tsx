@@ -28,7 +28,7 @@ const data = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "晨间值守",
-  description: "工作日 09:00 发布的港美股晨报：判断市场是否正在重新定价、持有逻辑是否需要复核。不构成买卖或仓位建议。",
+  description: "工作日 09:00 发布的港美股晨报：判断市场是否正在重新定价并识别异常波动。不构成买卖或仓位建议。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

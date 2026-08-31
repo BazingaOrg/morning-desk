@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DeskMark } from "@/components/DeskMark";
-import { num, pct, price, ratio, signedClass } from "@/lib/format";
+import { pct, price, ratio, signedClass } from "@/lib/format";
 import type { DailyReport, RowTag, SecurityRow } from "@/lib/types";
 
 function issueNo(ymd: string): string {
@@ -27,13 +27,60 @@ function formatBeijingShortFromYmd(ymd: string): string {
 }
 
 function tagShort(tag: RowTag): string | null {
-  if (tag === "需重新评估") return "重评";
+  if (tag === "数据异常") return "异常";
+  if (tag === "重点关注") return "关注";
   if (tag === "明显走强") return "走强";
   return null;
 }
 
-function hasThesis(rows: SecurityRow[]): boolean {
-  return rows.some((r) => r.thesisStatus !== "？未建立");
+type NumericSortKey = "ret1D" | "ret10D" | "excess10D" | "volumeRatio";
+type SortDirection = "asc" | "desc";
+type SortState = {
+  key: "default" | NumericSortKey;
+  direction: SortDirection;
+};
+
+const DEFAULT_SORT: SortState = { key: "default", direction: "desc" };
+
+function sortRowsForView(rows: SecurityRow[], sort: SortState): SecurityRow[] {
+  if (sort.key === "default") return rows;
+  const key = sort.key;
+  return [...rows].sort((a, b) => {
+    const av = a[key];
+    const bv = b[key];
+    if (av === null && bv === null) return a.display.localeCompare(b.display, "en");
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    const difference = sort.direction === "desc" ? bv - av : av - bv;
+    return difference || a.display.localeCompare(b.display, "en");
+  });
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  className,
+  onChange,
+}: {
+  label: string;
+  sortKey: NumericSortKey;
+  sort: SortState;
+  className?: string;
+  onChange: (key: NumericSortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  const direction = active ? sort.direction : null;
+  return (
+    <th
+      className={className}
+      aria-sort={direction === "desc" ? "descending" : direction === "asc" ? "ascending" : "none"}
+    >
+      <button className="sort-heading" type="button" onClick={() => onChange(sortKey)}>
+        {label}<span aria-hidden="true">{direction === "desc" ? "↓" : direction === "asc" ? "↑" : "↕"}</span>
+      </button>
+    </th>
+  );
 }
 
 function kpis(report: DailyReport) {
@@ -44,7 +91,7 @@ function kpis(report: DailyReport) {
   const down = live.filter((r) => (r.ret1D ?? 0) < 0).length;
   const groups = new Map<string, number[]>();
   for (const row of live) {
-    if (row.excess10D === null || row.inverse) continue;
+    if (row.excess10D === null) continue;
     const arr = groups.get(row.group) ?? [];
     arr.push(row.excess10D);
     groups.set(row.group, arr);
@@ -64,13 +111,7 @@ function kpis(report: DailyReport) {
   };
 }
 
-function BookList({
-  rows,
-  showThesis,
-}: {
-  rows: SecurityRow[];
-  showThesis: boolean;
-}) {
+function BookList({ rows }: { rows: SecurityRow[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
   return (
     <ul className="book">
@@ -95,7 +136,6 @@ function BookList({
                 <span className="sym">{row.display}</span>
                 <span className="name">
                   {row.name}
-                  {row.inverse ? " · 反向 −2x" : ""}
                   {row.limitedExcess ? " · SPAC" : ""}
                 </span>
               </span>
@@ -119,9 +159,7 @@ function BookList({
                 </div>
                 <div>
                   <dt>超额</dt>
-                  <dd className={`mono ${row.inverse ? "num-flat" : signedClass(row.excess10D)}`}>
-                    {row.inverse ? "—" : pct(row.excess10D)}
-                  </dd>
+                  <dd className={`mono ${signedClass(row.excess10D)}`}>{pct(row.excess10D)}</dd>
                 </div>
                 <div>
                   <dt>量比</dt>
@@ -138,12 +176,6 @@ function BookList({
                   <dt>{row.ytdLabel === "YTD" ? "YTD" : "上市以来"}</dt>
                   <dd className={`mono ${signedClass(ytdValue)}`}>{pct(ytdValue)}</dd>
                 </div>
-                {showThesis ? (
-                  <div>
-                    <dt>Thesis</dt>
-                    <dd>{row.thesisStatus}</dd>
-                  </div>
-                ) : null}
               </dl>
             ) : null}
           </li>
@@ -158,26 +190,65 @@ function UniverseTable({
   caption,
   id,
   eyebrow,
-  showThesis,
 }: {
   rows: SecurityRow[];
   caption: string;
   id: string;
   eyebrow: string;
-  showThesis: boolean;
 }) {
+  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+  const sortedRows = useMemo(() => sortRowsForView(rows, sort), [rows, sort]);
+
+  function changeSort(key: NumericSortKey) {
+    setSort((current) => {
+      if (current.key !== key) return { key, direction: "desc" };
+      if (current.direction === "desc") return { key, direction: "asc" };
+      return DEFAULT_SORT;
+    });
+  }
+
+  function selectSort(value: string) {
+    if (value === "default") {
+      setSort(DEFAULT_SORT);
+      return;
+    }
+    const [key, direction] = value.split(":") as [NumericSortKey, SortDirection];
+    setSort({ key, direction });
+  }
+
+  const selectValue = sort.key === "default" ? "default" : `${sort.key}:${sort.direction}`;
+
   return (
     <section className="section" id={id}>
       <p className="eyebrow">{eyebrow}</p>
       <h2>{caption}</h2>
-      <p className="legend">
-        <span><i style={{ background: "var(--oxblood)" }} />需重新评估</span>
-        <span><i style={{ background: "var(--gold)" }} />重点关注</span>
-        <span><i style={{ background: "var(--verdant)" }} />明显走强</span>
-      </p>
-      <BookList rows={rows} showThesis={showThesis} />
+      <div className="list-tools">
+        <p className="legend">
+          <span><i style={{ background: "var(--oxblood)" }} />数据异常</span>
+          <span><i style={{ background: "var(--gold)" }} />重点关注</span>
+          <span><i style={{ background: "var(--verdant)" }} />明显走强</span>
+        </p>
+        {sort.key !== "default" ? (
+          <button className="sort-reset" type="button" onClick={() => setSort(DEFAULT_SORT)}>默认顺序</button>
+        ) : null}
+        <label className="mobile-sort">
+          <span>排序</span>
+          <select value={selectValue} onChange={(event) => selectSort(event.target.value)}>
+            <option value="default">默认顺序</option>
+            <option value="ret1D:desc">1D 高到低</option>
+            <option value="ret1D:asc">1D 低到高</option>
+            <option value="ret10D:desc">10D 高到低</option>
+            <option value="ret10D:asc">10D 低到高</option>
+            <option value="excess10D:desc">超额 高到低</option>
+            <option value="excess10D:asc">超额 低到高</option>
+            <option value="volumeRatio:desc">量比 高到低</option>
+            <option value="volumeRatio:asc">量比 低到高</option>
+          </select>
+        </label>
+      </div>
+      <BookList rows={sortedRows} />
       <div className="table-wrap">
-        <table className={`tape-table ${showThesis ? "has-thesis" : "no-thesis"}`}>
+        <table className="tape-table">
           <colgroup>
             <col className="c-code" />
             <col className="c-name" />
@@ -188,37 +259,32 @@ function UniverseTable({
             <col className="c-vol col-secondary" />
             <col className="c-dist col-secondary" />
             <col className="c-ytd col-secondary" />
-            {showThesis ? <col className="c-thesis" /> : null}
           </colgroup>
           <thead>
             <tr>
               <th>代码</th>
               <th>名称</th>
               <th>收盘</th>
-              <th>1D</th>
-              <th>10D</th>
-              <th>超额</th>
-              <th className="col-secondary">量比</th>
+              <SortableHeader label="1D" sortKey="ret1D" sort={sort} onChange={changeSort} />
+              <SortableHeader label="10D" sortKey="ret10D" sort={sort} onChange={changeSort} />
+              <SortableHeader label="超额" sortKey="excess10D" sort={sort} onChange={changeSort} />
+              <SortableHeader className="col-secondary" label="量比" sortKey="volumeRatio" sort={sort} onChange={changeSort} />
               <th className="col-secondary">距高点</th>
               <th className="col-secondary">YTD</th>
-              {showThesis ? <th>Thesis</th> : null}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.id} data-tag={row.tag}>
                 <td>{row.display}</td>
                 <td className="cell-name">
                   {row.name}
-                  {row.inverse ? <div className="name">反向 −2x 日频</div> : null}
                   {row.limitedExcess ? <div className="name">SPAC</div> : null}
                 </td>
                 <td className="mono">{price(row.close)}</td>
                 <td className={`mono ${signedClass(row.ret1D)}`}>{pct(row.ret1D)}</td>
                 <td className={`mono ${signedClass(row.ret10D)}`}>{pct(row.ret10D)}</td>
-                <td className={`mono ${row.inverse ? "num-flat" : signedClass(row.excess10D)}`}>
-                  {row.inverse ? "—" : pct(row.excess10D)}
-                </td>
+                <td className={`mono ${signedClass(row.excess10D)}`}>{pct(row.excess10D)}</td>
                 <td className="mono col-secondary">
                   {ratio(row.volumeRatio)}
                   <div className="name">{row.volumeClass ?? ""}</div>
@@ -228,7 +294,6 @@ function UniverseTable({
                   {row.ytdLabel === "YTD" ? pct(row.retYtd) : pct(row.sinceListing)}
                   {row.ytdLabel !== "YTD" ? <div className="name">上市以来</div> : null}
                 </td>
-                {showThesis ? <td>{row.thesisStatus}</td> : null}
               </tr>
             ))}
           </tbody>
@@ -246,11 +311,7 @@ export function Briefing({
   staleStats?: boolean;
 }) {
   const stat = kpis(report);
-  const allRows = [...report.usRows, ...report.hkRows];
-  const showThesis = hasThesis(allRows);
-  const showReviews = report.thesisReviews.length > 0;
   const showCatalysts = report.catalysts.length > 0;
-  const inverses = allRows.filter((r) => r.inverse);
 
   return (
     <article>
@@ -408,38 +469,17 @@ export function Briefing({
           caption={`美股 · ${report.usRows.length} 只`}
           id="us"
           eyebrow="—— 卷三 · 美股"
-          showThesis={showThesis}
         />
         <UniverseTable
           rows={report.hkRows}
           caption={`港股 · ${report.hkRows.length} 只`}
           id="hk"
           eyebrow="—— 卷四 · 港股"
-          showThesis={showThesis}
         />
-
-        {showReviews ? (
-          <section className="section" id="thesis">
-            <p className="eyebrow">—— 卷五 · 持有复核</p>
-            <h2>需要重新审视的持仓</h2>
-            {report.thesisReviews.map((item) => (
-              <div key={item.id} className="review-item">
-                <div>
-                  <div className="mono">{item.display}</div>
-                  <div className="muted">{item.name}</div>
-                </div>
-                <div>
-                  <div>{item.status}　·　{item.review}</div>
-                  <div className="muted">{item.why}</div>
-                </div>
-              </div>
-            ))}
-          </section>
-        ) : null}
 
         {showCatalysts ? (
           <section className="section" id="catalysts">
-            <p className="eyebrow">—— {showReviews ? "卷六" : "卷五"} · 已确认日程</p>
+            <p className="eyebrow">—— 卷五 · 已确认日程</p>
             <h2>未来 30 天</h2>
             {report.catalysts.map((c) => (
               <div key={`${c.id}-${c.date}`} className="catalyst-item">
@@ -465,16 +505,7 @@ export function Briefing({
             {report.generatedAt} 生成　·　价格来自新浪 / 腾讯完整收盘　·　公告来自
             <a href="https://www.sec.gov/search-filings"> SEC</a> /
             <a href="https://www.hkexnews.hk/"> HKEX</a>
-            {showThesis ? "　·　持有逻辑见 data/thesis.json" : "　·　尚未填写持有逻辑，故不列 Thesis"}
           </p>
-          {inverses.map((r) => (
-            <p key={r.id}>
-              {r.display} 当日 {pct(r.inverse?.actual1D)}，目标 {pct(r.inverse?.target1D)}
-              （标的 {r.inverse?.underlying} {pct(r.inverse?.underlying1D)}），偏差{" "}
-              {r.inverse?.deviation1D == null ? "N/A" : `${num(r.inverse.deviation1D * 100)}pt`}。
-              多日收益不是 −2 倍线性映射。
-            </p>
-          ))}
         </footer>
       </div>
     </article>

@@ -81,7 +81,7 @@ export function ReportApp({
 
   useEffect(() => {
     if (updating) return;
-    const ids = ["lede", "movers", "us", "hk", "thesis", "catalysts"];
+    const ids = ["lede", "movers", "us", "hk", "catalysts"];
     function update() {
       const line = window.innerHeight * 0.28;
       let current = ids[0];
@@ -142,14 +142,10 @@ export function ReportApp({
       <header className="volnav">
         <nav className="vol-links" aria-label="分卷">
           <Link href="/" aria-current="true">晨报</Link>
-          <Link href="/short-monitor">空头</Link>
           <a href="#lede" aria-current={active === "lede" ? "true" : undefined}>判断</a>
           <a href="#movers" aria-current={active === "movers" ? "true" : undefined}>异动</a>
           <a href="#us" aria-current={active === "us" ? "true" : undefined}>美股</a>
           <a href="#hk" aria-current={active === "hk" ? "true" : undefined}>港股</a>
-          {report?.thesisReviews.length ? (
-            <a href="#thesis" aria-current={active === "thesis" ? "true" : undefined}>复核</a>
-          ) : null}
           {report?.catalysts.length ? (
             <a href="#catalysts" aria-current={active === "catalysts" ? "true" : undefined}>日程</a>
           ) : null}

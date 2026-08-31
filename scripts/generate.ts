@@ -1,6 +1,9 @@
+import { loadLocalEnv } from "../lib/env";
 import { runGenerate } from "../lib/generate-job";
 import { readDayRun } from "../lib/shared/run-lock";
 import { beijingDate } from "../lib/time";
+
+loadLocalEnv();
 
 async function main() {
   const bj = beijingDate();

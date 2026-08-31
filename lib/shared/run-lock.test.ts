@@ -52,14 +52,14 @@ describe("run-lock", () => {
   });
 
   it("expired lease can be stolen", async () => {
-    const id = "short-monitor";
+    const id = "morning";
     const resource = path.join(baseDir, "locks", `${id}.resource`);
     const lockDir = `${resource}.lock`;
     await fs.mkdir(lockDir, { recursive: true });
-    await fs.writeFile(path.join(lockDir, "owner.json"), JSON.stringify({ token: "old-short" }));
+    await fs.writeFile(path.join(lockDir, "owner.json"), JSON.stringify({ token: "old-morning" }));
     const stale = new Date(Date.now() - 120_000);
     await fs.utimes(lockDir, stale, stale);
-    const stolen = await acquireRunLock(id, "short-monitor:new", 5_000, baseDir, 0);
+    const stolen = await acquireRunLock(id, "morning:new", 5_000, baseDir, 0);
     assert.ok(stolen);
     await releaseRunLock(stolen);
   });
@@ -87,7 +87,6 @@ describe("run-lock", () => {
       status: "success" as const,
       runId: "run-1",
       finishedAt: new Date().toISOString(),
-      marketSnapshotId: "ms-unique-1",
     };
     await writeDayRun("morning", "2026-01-06", record, baseDir);
     const loaded = await readDayRun("morning", "2026-01-06", baseDir);

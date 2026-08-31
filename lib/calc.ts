@@ -1,13 +1,9 @@
 import type {
   DailyBar,
-  InverseStats,
   QuoteSnapshot,
-  ReviewLevel,
   RowTag,
   SecurityRow,
   SeriesBundle,
-  ThesisRecord,
-  ThesisStatus,
   UniverseItem,
   VolumeClass,
 } from "./types";
@@ -138,12 +134,6 @@ export function identityCheck(item: UniverseItem, quote?: QuoteSnapshot): {
   if (item.id === "CBRS" && !/Cerebras|赛瑞巴斯/i.test(hay)) {
     return { ok: false, note: `名称「${hay.trim() || "未知"}」与 Cerebras Systems 不符` };
   }
-  if (item.id === "SNK" && !/GraniteShares|做空SpaceX|Short SpaceX/i.test(hay)) {
-    return { ok: false, note: `名称「${hay.trim() || "未知"}」与 2x Short SpaceX ETF 不符` };
-  }
-  if (item.id === "GLL" && !/UltraShort|做空黄金|Gold/i.test(hay)) {
-    return { ok: false, note: `名称「${hay.trim() || "未知"}」与 UltraShort Gold 不符` };
-  }
   if (item.identity.length && item.identity.some((k) => hay.toLowerCase().includes(k.toLowerCase()))) {
     return { ok: true };
   }
@@ -162,13 +152,49 @@ export function isHalted(quote?: QuoteSnapshot): boolean {
   return /halt|suspend|停牌/i.test(name) || quote.quoteType === "NONE";
 }
 
-function defaultThesis(): ThesisRecord {
-  return { thesis: "", status: "？未建立", review: "正常跟踪" };
+export function movementSignals(input: {
+  ret1D: number | null;
+  excess10D: number | null;
+  volumeRatio: number | null;
+}) {
+  const dayTriggered = input.ret1D !== null && Math.abs(input.ret1D) >= 0.03;
+  const excessTriggered = input.excess10D !== null && Math.abs(input.excess10D) >= 0.05;
+  const volumeTriggered =
+    input.volumeRatio !== null && (input.volumeRatio >= 1.5 || input.volumeRatio < 0.6);
+  const positiveCount = [
+    input.ret1D !== null && input.ret1D >= 0.03,
+    input.excess10D !== null && input.excess10D >= 0.05,
+    input.volumeRatio !== null && input.volumeRatio >= 1.5,
+  ].filter(Boolean).length;
+  const negativeCount = [
+    input.ret1D !== null && input.ret1D <= -0.03,
+    input.excess10D !== null && input.excess10D <= -0.05,
+    input.volumeRatio !== null && input.volumeRatio < 0.6,
+  ].filter(Boolean).length;
+  const severe =
+    (input.ret1D !== null && Math.abs(input.ret1D) >= 0.06) ||
+    (input.excess10D !== null && Math.abs(input.excess10D) >= 0.1) ||
+    (input.volumeRatio !== null && (input.volumeRatio >= 2 || input.volumeRatio < 0.4));
+  const volumeSeverity = input.volumeRatio === null
+    ? 0
+    : input.volumeRatio >= 1
+      ? input.volumeRatio / 1.5
+      : 0.6 / Math.max(input.volumeRatio, 0.01);
+
+  return {
+    triggerCount: [dayTriggered, excessTriggered, volumeTriggered].filter(Boolean).length,
+    positiveCount,
+    negativeCount,
+    severe,
+    severity: Math.max(
+      Math.abs(input.ret1D ?? 0) / 0.03,
+      Math.abs(input.excess10D ?? 0) / 0.05,
+      volumeSeverity,
+    ),
+  };
 }
 
 export function tagRow(input: {
-  review: ReviewLevel;
-  thesisStatus: ThesisStatus;
   ret1D: number | null;
   excess10D: number | null;
   volumeRatio: number | null;
@@ -176,52 +202,13 @@ export function tagRow(input: {
   listed: boolean;
   identityOk: boolean;
   material: boolean;
-  inverse?: boolean;
 }): RowTag {
-  const xs = input.inverse ? null : input.excess10D;
-  if (
-    input.review === "重新评估" ||
-    input.thesisStatus === "↓削弱" ||
-    input.halted ||
-    !input.listed ||
-    !input.identityOk
-  ) {
-    return "需重新评估";
-  }
-  const hot =
-    input.review === "重点关注" ||
-    input.material ||
-    (input.ret1D !== null && Math.abs(input.ret1D) >= 0.03) ||
-    (xs !== null && Math.abs(xs) >= 0.05) ||
-    (input.volumeRatio !== null && (input.volumeRatio >= 1.5 || input.volumeRatio < 0.6));
-  if (hot) return "重点关注";
-  if (xs !== null && xs >= 0.05 && (input.ret1D ?? 0) > 0) return "明显走强";
-  return "正常";
-}
-
-export function buildInverseStats(
-  item: UniverseItem,
-  lastDate: string,
-  self: SeriesBundle,
-  under?: SeriesBundle,
-): InverseStats | undefined {
-  if (!item.inverse || !item.underlying) return undefined;
-  const actual1D = periodReturn(self.bars, lastDate, 1, false);
-  const underlying1D = under ? periodReturn(under.bars, lastDate, 1, false) : null;
-  const target1D = underlying1D === null ? null : -2 * underlying1D;
-  const deviation1D =
-    actual1D === null || target1D === null ? null : actual1D - target1D;
-  const underName = under?.quote?.shortName || item.underlying;
-  return {
-    kind: item.inverse,
-    underlying: item.underlying,
-    underlyingName: underName,
-    target1D,
-    actual1D,
-    deviation1D,
-    underlying1D,
-    note: "多日累计不是标的累计收益的简单 -2 倍；关注当日目标偏差、路径依赖与波动损耗。",
-  };
+  if (input.halted || !input.listed || !input.identityOk) return "数据异常";
+  const signals = movementSignals(input);
+  const materialMove = input.material || signals.severe || signals.triggerCount >= 2;
+  if (!materialMove) return "正常";
+  if (signals.positiveCount >= 2 && signals.negativeCount === 0) return "明显走强";
+  return "重点关注";
 }
 
 export function buildRow(
@@ -229,11 +216,8 @@ export function buildRow(
   lastDate: string | null,
   bundle: SeriesBundle,
   bench?: SeriesBundle,
-  under?: SeriesBundle,
-  thesisMap: Record<string, ThesisRecord> = {},
   materialReasons: string[] = [],
 ): SecurityRow {
-  const thesis = thesisMap[item.id] ?? defaultThesis();
   const listed = Boolean(bundle.quote && bundle.quote.quoteType !== "NONE" && bundle.bars.length);
   const identity = identityCheck(item, bundle.quote);
   const halted = isHalted(bundle.quote);
@@ -269,31 +253,17 @@ export function buildRow(
   const dist52W = lastDate ? distTo52WHigh(bundle.bars, lastDate, usedAdjusted) : null;
 
   const bench10 = lastDate && bench ? periodReturn(bench.bars, lastDate, 10, splitInWindow(bench.splits, lastDate, 400)) : null;
-  const excess10D =
-    item.inverse || ret10D === null || bench10 === null ? null : ret10D - bench10;
-
-  const inverse = lastDate ? buildInverseStats(item, lastDate, bundle, under) : undefined;
+  const excess10D = ret10D === null || bench10 === null ? null : ret10D - bench10;
 
   const moverReasons = [...materialReasons];
   if (ret1D !== null && Math.abs(ret1D) >= 0.03) moverReasons.push(`|1D| ${Math.abs(ret1D * 100).toFixed(2)}%`);
-  if (!item.inverse && excess10D !== null && Math.abs(excess10D) >= 0.05) {
+  if (excess10D !== null && Math.abs(excess10D) >= 0.05) {
     moverReasons.push(`|10D超额| ${(Math.abs(excess10D) * 100).toFixed(2)}%`);
   }
   if (vol !== null && (vol >= 1.5 || vol < 0.6)) moverReasons.push(`量比 ${vol.toFixed(2)}`);
   if (halted) moverReasons.push("停牌或交易状态异常");
   if (!identity.ok) moverReasons.push("代码/名称核验异常");
-  if (thesis.status !== "→未变" && thesis.status !== "？未建立") {
-    moverReasons.push(`Thesis ${thesis.status}`);
-  }
-
-  const review: ReviewLevel =
-    !listed || halted || !identity.ok
-      ? "重新评估"
-      : thesis.review;
-
   const tag = tagRow({
-    review,
-    thesisStatus: thesis.status,
     ret1D,
     excess10D,
     volumeRatio: vol,
@@ -301,7 +271,6 @@ export function buildRow(
     listed,
     identityOk: identity.ok,
     material: materialReasons.length > 0,
-    inverse: Boolean(item.inverse),
   });
 
   const notes = [...item.notes];
@@ -329,9 +298,6 @@ export function buildRow(
     volumeRatio: vol,
     volumeClass: classifyVolume(vol),
     dist52W,
-    thesisStatus: thesis.status,
-    thesis: thesis.thesis,
-    review,
     tag,
     sessionDate: lastDate,
     listed,
@@ -341,27 +307,8 @@ export function buildRow(
     splitNote,
     usedAdjusted,
     notes,
-    inverse,
     limitedExcess: item.limitedExcess,
     moverReasons,
     sources: sourceLinks(item),
   };
-}
-
-export const TAG_ORDER: Record<RowTag, number> = {
-  需重新评估: 0,
-  重点关注: 1,
-  明显走强: 2,
-  正常: 3,
-};
-
-export function sortRows(rows: SecurityRow[]): SecurityRow[] {
-  return [...rows].sort((a, b) => {
-    const tr = TAG_ORDER[a.tag] - TAG_ORDER[b.tag];
-    if (tr !== 0) return tr;
-    const a1 = Math.abs(a.ret1D ?? 0);
-    const b1 = Math.abs(b.ret1D ?? 0);
-    if (a1 !== b1) return b1 - a1;
-    return Math.abs(b.excess10D ?? 0) - Math.abs(a.excess10D ?? 0);
-  });
 }

@@ -1,11 +1,6 @@
-import { buildRow, sortRows } from "./calc";
+import { buildRow, movementSignals } from "./calc";
 import { usCalendarCoverageEnd, usMarketClock } from "./shared/calendar";
-import {
-  classifyUsFreshness,
-  saveMarketSnapshot,
-  type MarketSnapshot,
-} from "./shared/market-snapshot";
-import { nextSessionWaterline, type SessionFreshness } from "./shared/session";
+import { classifyUsFreshness, nextSessionWaterline, type SessionFreshness } from "./shared/session";
 import { writeDayRun } from "./shared/run-lock";
 import { beijingDate, formatBeijingStamp, HK_TZ, inNextDays, lastCompleteSessionDate, US_TZ } from "./time";
 import type {
@@ -16,18 +11,11 @@ import type {
   MoverLine,
   SecurityRow,
   SeriesBundle,
-  ThesisReviewItem,
 } from "./types";
 import { collectFacts, factsFor, type FactDoc } from "./facts";
 import { HK_REF, HK_REF_ALT, US_REF, US_REF_ALT } from "./universe";
-import {
-  fetchAdjustedUsSeries,
-  fetchUniverseSeries,
-  readAdjustedCache,
-  writeAdjustedCache,
-} from "./yahoo";
-import { buildShortMonitorUniverseItems, loadSecurityMaster } from "./short-monitor/master";
-import { loadState, loadThesis, loadUniverse, saveMorningReportRun, saveState } from "./store";
+import { fetchUniverseSeries } from "./yahoo";
+import { loadState, loadUniverse, saveMorningReportRun, saveState } from "./store";
 
 function lastCompleteDate(bundle: SeriesBundle | undefined, exchangeTz: string): string | null {
   if (!bundle?.bars.length) return null;
@@ -47,19 +35,6 @@ export function agreedReferenceSession(
   const fromAlternative = lastCompleteDate(alternative, exchangeTz);
   if (fromPrimary == null || fromAlternative == null) return fromPrimary ?? fromAlternative;
   return fromPrimary === fromAlternative ? fromPrimary : null;
-}
-
-async function withRetry<T>(work: () => Promise<T>, retries = 1): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      return await work();
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
-    }
-  }
-  throw lastError;
 }
 
 function classifyHkFreshness(
@@ -112,7 +87,7 @@ function avg(values: number[]): number | null {
 function groupStrength(rows: SecurityRow[]): { name: string; xs: number }[] {
   const map = new Map<string, number[]>();
   for (const row of rows) {
-    if (row.excess10D === null || row.inverse) continue;
+    if (row.excess10D === null) continue;
     const arr = map.get(row.group) ?? [];
     arr.push(row.excess10D);
     map.set(row.group, arr);
@@ -128,7 +103,6 @@ function buildConclusion(
   usRows: SecurityRow[],
   hkRows: SecurityRow[],
   movers: MoverLine[],
-  thesisReviews: ThesisReviewItem[],
 ): string[] {
   if (us.closed && hk.closed) {
     return [];
@@ -136,7 +110,7 @@ function buildConclusion(
   const lines: string[] = [];
   if (us.isNew) {
     const up = usRows.filter((r) => (r.ret1D ?? 0) > 0).length;
-    const beat = usRows.filter((r) => (r.excess10D ?? 0) > 0 && !r.inverse).length;
+    const beat = usRows.filter((r) => (r.excess10D ?? 0) > 0).length;
     const groups = groupStrength(usRows);
     const strong = groups[0];
     const weak = groups[groups.length - 1];
@@ -176,34 +150,18 @@ function buildConclusion(
     lines.push("未见明显放量或明显缩量的新异动。");
   }
 
-  const thesisRisk = thesisReviews.filter((t) => t.review !== "正常跟踪" || t.status === "↓削弱");
-  const totalCount = usRows.length + hkRows.length;
-  const unbuiltCount = [...usRows, ...hkRows].filter((r) => r.thesisStatus === "？未建立").length;
-  if (thesisRisk.length) {
-    lines.push(
-      `持有逻辑需复核 ${thesisRisk.length} 只，级别含 ${[...new Set(thesisRisk.map((t) => t.review))].join("、")}。Thesis 不因单日涨跌自动改写。`,
-    );
-  } else {
-    lines.push(
-      unbuiltCount === totalCount
-        ? `${totalCount} 只证券的持有逻辑均未建立，本次不因价格波动补写或改写 Thesis。`
-        : "未见已核验的 Thesis 状态变化；单日涨跌本身不构成持有逻辑变化。",
-    );
-  }
   return lines.slice(0, 5);
 }
 
 function natureOf(row: SecurityRow): string {
   const bits: string[] = [];
-  if (row.tag === "需重新评估") bits.push("需重新评估");
+  if (row.tag === "数据异常") bits.push("数据异常");
   if (row.halted) bits.push("停牌");
   if (!row.identityOk) bits.push("代码核验");
   if (row.volumeClass === "明显放量" || row.volumeClass === "明显缩量") bits.push(row.volumeClass);
   if (row.ret1D !== null && Math.abs(row.ret1D) >= 0.03) bits.push("日涨跌");
-  if (!row.inverse && row.excess10D !== null && Math.abs(row.excess10D) >= 0.05) bits.push("相对强弱");
-  if (row.thesisStatus === "↑强化" || row.thesisStatus === "↓削弱") bits.push("Thesis");
+  if (row.excess10D !== null && Math.abs(row.excess10D) >= 0.05) bits.push("相对强弱");
   if (row.moverReasons.some((x) => /8-K|10-Q|10-K|6-K|HK|董事会|股东|业绩/.test(x))) bits.push("公告");
-  if (row.inverse) bits.push("杠杆反向");
   return bits.slice(0, 3).join("／") || "异动";
 }
 
@@ -220,11 +178,6 @@ function moverReason(
     (r) => r.includes("拆股") || r.includes("停牌") || r.includes("核验") || r.includes("除息"),
   );
   if (verified.length) return { reason: verified.join("；") };
-  if (row.inverse && row.inverse.deviation1D !== null) {
-    return {
-      reason: `反向产品当日目标偏差 ${(row.inverse.deviation1D * 100).toFixed(2)} 个百分点；暂无可靠公开公司事件`,
-    };
-  }
   return { reason: "暂无可靠公开原因" };
 }
 
@@ -233,28 +186,35 @@ function pickMovers(
   allow: Set<"US" | "HK">,
   factMap: Map<string, FactDoc[]>,
 ): MoverLine[] {
-  const scored = rows
+  return rows
     .filter((r) => allow.has(r.market))
-    .filter((r) => {
-      const by1 = r.ret1D !== null && Math.abs(r.ret1D) >= 0.03;
-      const byXs = !r.inverse && r.excess10D !== null && Math.abs(r.excess10D) >= 0.05;
-      const byVol = r.volumeRatio !== null && (r.volumeRatio >= 1.5 || r.volumeRatio < 0.6);
-      const byEvent = r.halted || !r.identityOk || r.notes.some((n) => n.includes("拆股"));
-      const byThesis = r.thesisStatus === "↑强化" || r.thesisStatus === "↓削弱";
-      const byFact = (factMap.get(r.id) ?? []).length > 0;
-      return by1 || byXs || byVol || byEvent || byThesis || byFact;
-    })
     .map((r) => {
-      const score =
-        (r.tag === "需重新评估" ? 40 : 0) +
-        (r.halted || !r.identityOk ? 30 : 0) +
-        Math.abs(r.ret1D ?? 0) * 100 +
-        Math.abs(r.inverse ? 0 : (r.excess10D ?? 0)) * 40 +
-        (r.volumeRatio !== null && r.volumeRatio >= 1.5 ? 8 : 0) +
-        (r.volumeRatio !== null && r.volumeRatio < 0.6 ? 6 : 0);
-      return { r, score };
+      const docs = factMap.get(r.id) ?? [];
+      return {
+        r,
+        signals: movementSignals(r),
+        dataAnomaly: r.tag === "数据异常",
+        officialEvent: docs.length > 0,
+        materialEvent: r.halted || !r.identityOk || r.notes.some((note) => note.includes("拆股")),
+      };
     })
-    .sort((a, b) => b.score - a.score)
+    .filter(
+      (entry) =>
+        entry.dataAnomaly ||
+        entry.officialEvent ||
+        entry.materialEvent ||
+        entry.signals.triggerCount > 0,
+    )
+    .sort(
+      (a, b) =>
+        Number(b.dataAnomaly) - Number(a.dataAnomaly) ||
+        Number(b.officialEvent) - Number(a.officialEvent) ||
+        Number(b.materialEvent) - Number(a.materialEvent) ||
+        b.signals.triggerCount - a.signals.triggerCount ||
+        Number(b.signals.severe) - Number(a.signals.severe) ||
+        b.signals.severity - a.signals.severity ||
+        a.r.display.localeCompare(b.r.display, "en"),
+    )
     .slice(0, 8)
     .map(({ r }) => {
       const explained = moverReason(r, factMap.get(r.id) ?? []);
@@ -264,7 +224,7 @@ function pickMovers(
         name: r.name,
         ret1D: r.ret1D,
         ret10D: r.ret10D,
-        excess10D: r.inverse ? null : r.excess10D,
+        excess10D: r.excess10D,
         volumeRatio: r.volumeRatio,
         nature: natureOf(r),
         reason: explained.reason,
@@ -272,51 +232,23 @@ function pickMovers(
         tag: r.tag,
       };
     });
-  return scored;
-}
-
-function thesisReviews(rows: SecurityRow[]): ThesisReviewItem[] {
-  return rows
-    .filter(
-      (r) =>
-        r.review !== "正常跟踪" ||
-        r.thesisStatus === "↑强化" ||
-        r.thesisStatus === "↓削弱" ||
-        !r.identityOk ||
-        r.halted,
-    )
-    .map((r) => ({
-      id: r.id,
-      display: r.display,
-      name: r.name,
-      status: r.thesisStatus,
-      review: r.review,
-      thesis: r.thesis || "？未建立",
-      why:
-        r.identityNote ||
-        (r.halted ? "交易状态异常" : "") ||
-        (r.review === "重新评估" ? "需复核上市或持有前提" : "价格或量能触发关注，Thesis 本身未自动改写"),
-    }));
 }
 
 function buildChops(
   us: MarketStamp,
   hk: MarketStamp,
   rows: SecurityRow[],
-  reviews: ThesisReviewItem[],
 ): Chop[] {
   if (us.closed && hk.closed) {
     return [
       { key: "risk", title: "风险偏好", value: "休市", tone: "idle" },
       { key: "rs", title: "相对强弱", value: "无新数据", tone: "idle" },
-      { key: "thesis", title: "Thesis", value: "不更新", tone: "idle" },
     ];
   }
   if (!us.isNew && !hk.isNew) {
     return [
       { key: "risk", title: "风险偏好", value: "未变", tone: "idle" },
       { key: "rs", title: "相对强弱", value: "未变", tone: "idle" },
-      { key: "thesis", title: "Thesis", value: "不更新", tone: "idle" },
     ];
   }
   const live = rows.filter((r) => (r.market === "US" ? us.isNew : hk.isNew));
@@ -325,22 +257,15 @@ function buildChops(
   const riskValue = up - down >= 8 ? "偏进攻" : down - up >= 8 ? "偏防御" : "中性分化";
   const riskTone = riskValue === "偏进攻" ? "strong" : riskValue === "偏防御" ? "alert" : "calm";
 
-  const xs = live.filter((r) => r.excess10D !== null && !r.inverse);
+  const xs = live.filter((r) => r.excess10D !== null);
   const beat = xs.filter((r) => (r.excess10D ?? 0) > 0).length;
   const rsValue =
     xs.length === 0 ? "样本不足" : beat / xs.length >= 0.6 ? "强于基准" : beat / xs.length <= 0.4 ? "弱于基准" : "内部分化";
   const rsTone = rsValue === "强于基准" ? "strong" : rsValue === "弱于基准" ? "alert" : "calm";
 
-  const need = reviews.filter((r) => r.review === "重新评估").length;
-  const watch = reviews.filter((r) => r.review === "重点关注").length;
-  const unbuilt = rows.filter((r) => r.thesisStatus === "？未建立").length;
-  const thesisValue = need ? "需重估" : watch ? "需关注" : unbuilt === rows.length ? "未建立" : "无复核";
-  const thesisTone = need ? "alert" : watch ? "calm" : "idle";
-
   return [
     { key: "risk", title: "风险偏好", value: riskValue, tone: riskTone },
     { key: "rs", title: "相对强弱", value: rsValue, tone: rsTone },
-    { key: "thesis", title: "Thesis", value: thesisValue, tone: thesisTone },
   ];
 }
 
@@ -376,59 +301,8 @@ export async function generateReport(): Promise<DailyReport> {
   const runId = `morning-${bj}-${crypto.randomUUID()}`;
   const state = await loadState();
   const items = await loadUniverse();
-  const shortMonitorItems = buildShortMonitorUniverseItems();
-  const thesis = await loadThesis();
 
-  const fetchItems = [...new Map(
-    [...items, ...shortMonitorItems].map((item) => [item.yahoo, item]),
-  ).values()];
-  const universeYahoos = new Set(items.map((item) => item.yahoo));
-  const barsSkip = new Set(
-    loadSecurityMaster().underlyings
-      .map((underlying) => underlying.yahoo)
-      .filter((yahoo) => !universeYahoos.has(yahoo)),
-  );
-  const series = await fetchUniverseSeries(new Map(), fetchItems, barsSkip);
-  await Promise.all(loadSecurityMaster().underlyings.map(async (underlying) => {
-    const current = series.get(underlying.yahoo);
-    if (!current) return;
-    try {
-      const adjusted = await withRetry(() => fetchAdjustedUsSeries(underlying.yahoo));
-      series.set(underlying.yahoo, {
-        ...current,
-        ...adjusted,
-        adjustmentMode: "adjusted",
-        stale: undefined,
-        staleError: undefined,
-        lastSuccessAt: undefined,
-      });
-      await writeAdjustedCache(underlying.yahoo, {
-        fetchedAt: new Date().toISOString(),
-        beijingDate: bj,
-        quote: current.quote ?? { yahoo: underlying.yahoo, symbol: underlying.yahoo },
-        bars: adjusted.bars,
-        splits: adjusted.splits,
-        dividends: adjusted.dividends,
-        adjustmentMode: "adjusted",
-      });
-    } catch (error) {
-      const cached = await readAdjustedCache(underlying.yahoo);
-      if (cached?.bars.length) {
-        series.set(underlying.yahoo, {
-          ...current,
-          bars: cached.bars,
-          splits: cached.splits,
-          dividends: cached.dividends,
-          adjustmentMode: "adjusted",
-          stale: true,
-          staleError: error instanceof Error ? error.message : String(error),
-          lastSuccessAt: cached.fetchedAt,
-        });
-      } else {
-        series.set(underlying.yahoo, { ...current, adjustmentMode: "unadjusted" });
-      }
-    }
-  }));
+  const series = await fetchUniverseSeries(new Map(), items);
 
   const usRef = series.get(US_REF);
   const usRefAlt = series.get(US_REF_ALT);
@@ -492,20 +366,18 @@ export async function generateReport(): Promise<DailyReport> {
       error: "无行情",
     };
     const bench = item.benchmark ? series.get(item.benchmark) : undefined;
-    const under = item.underlying ? series.get(item.underlying) : undefined;
     const material = materialFor(session, bundle, factById.get(item.id) ?? []);
-    return buildRow(item, session, bundle, bench, under, thesis, material);
+    return buildRow(item, session, bundle, bench, material);
   });
 
-  const usRows = sortRows(rows.filter((r) => r.market === "US"));
-  const hkRows = sortRows(rows.filter((r) => r.market === "HK"));
+  const usRows = rows.filter((r) => r.market === "US");
+  const hkRows = rows.filter((r) => r.market === "HK");
   const allow = new Set<"US" | "HK">();
   if (us.isNew) allow.add("US");
   if (hk.isNew) allow.add("HK");
   const movers = closedBoth ? [] : pickMovers([...usRows, ...hkRows], allow, factById);
-  const reviews = thesisReviews([...usRows, ...hkRows]);
-  const chops = buildChops(us, hk, [...usRows, ...hkRows], reviews);
-  const conclusion = buildConclusion(us, hk, usRows, hkRows, movers, reviews);
+  const chops = buildChops(us, hk, [...usRows, ...hkRows]);
+  const conclusion = buildConclusion(us, hk, usRows, hkRows, movers);
 
   const catalysts: Catalyst[] = [];
   for (const item of items) {
@@ -538,7 +410,6 @@ export async function generateReport(): Promise<DailyReport> {
   const unfinished = [
     "异动原因仅在对上 SEC 申报或 HKEX 公告标题时写入；否则为「暂无可靠公开原因」。",
     "未来 30 天只列能从官方公告标题解析出日期的节点。",
-    "Thesis 仅读取 data/thesis.json，价格波动不会改写状态。",
   ];
 
   const holidays: string[] = [];
@@ -561,7 +432,6 @@ export async function generateReport(): Promise<DailyReport> {
     movers,
     usRows,
     hkRows,
-    thesisReviews: reviews,
     catalysts,
     audit: {
       generatedAt: formatBeijingStamp(generatedAt),
@@ -570,7 +440,6 @@ export async function generateReport(): Promise<DailyReport> {
         "港股日线：腾讯行情 fqkline（完整已收盘日）",
         "名称与市场状态：腾讯行情快照",
         ...facts.sourcesUsed,
-        "持有逻辑：data/thesis.json",
       ],
       gaps: [...facts.gaps, ...gaps].slice(0, 40),
       holidays,
@@ -579,43 +448,9 @@ export async function generateReport(): Promise<DailyReport> {
     },
   };
 
-  const snapshot: MarketSnapshot = {
-    id: `ms-${runId}`,
-    kind: "overnight_snapshot",
-    beijingDate: bj,
-    generatedAt: generatedAt.toISOString(),
-    us: {
-      sessionDate: us.sessionDate,
-      freshness: usFreshness,
-      kind: clock.reportKind === "closed" ? "closed" : usSession ? clock.lastComplete.kind : "unavailable",
-      wallYmd: clock.wallYmd,
-      wallKind: clock.wallKind,
-      reportYmd: clock.reportYmd,
-      reportKind: clock.reportKind,
-      lastCompleteYmd: clock.lastComplete.ymd,
-    },
-    hk: {
-      sessionDate: hkSession,
-      freshness: hkFreshness,
-    },
-    marketSeries: Object.fromEntries(
-      shortMonitorItems.map((item) => [
-        item.yahoo,
-        series.get(item.yahoo) ?? {
-          item,
-          bars: [],
-          splits: [],
-          dividends: [],
-          error: "missing from morning capture",
-        },
-      ]),
-    ),
-  };
-  await saveMarketSnapshot(snapshot);
   await saveMorningReportRun({
     runId,
     report,
-    marketSnapshotId: snapshot.id,
   });
   await saveState({
     lastBeijingDate: bj,
@@ -626,7 +461,6 @@ export async function generateReport(): Promise<DailyReport> {
     status: "success",
     runId,
     finishedAt: new Date().toISOString(),
-    marketSnapshotId: snapshot.id,
   });
   return report;
 }
