@@ -7,10 +7,6 @@ services:
     environment:
       TZ: Asia/Shanghai
       DESK_EDIT_TOKEN: ${DESK_EDIT_TOKEN:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
-      FRED_API_KEY: ${FRED_API_KEY:-}
     volumes:
       - ./data:/app/data
 
@@ -20,10 +16,6 @@ services:
     environment:
       TZ: Asia/Shanghai
       DESK_EDIT_TOKEN: ${DESK_EDIT_TOKEN:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
-      FRED_API_KEY: ${FRED_API_KEY:-}
     volumes:
       - ./data:/app/data
     command: npm run scheduler
