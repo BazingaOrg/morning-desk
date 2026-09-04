@@ -1,11 +1,11 @@
 import { ReportApp } from "@/components/ReportApp";
 import {
   buildUniversePayloadFrom,
-  intersectReport,
   isJobLive,
   loadJobStatus,
   loadLatestReport,
   loadUniverse,
+  presentReport,
 } from "@/lib/store";
 import { connection } from "next/server";
 
@@ -19,8 +19,7 @@ export default async function Page() {
     loadJobStatus(),
     loadUniverse(),
   ]);
-  const ids = new Set(items.map((item) => item.id));
-  const served = report ? intersectReport(report, ids) : null;
+  const served = report ? presentReport(report, items) : null;
   const initialUniverse = buildUniversePayloadFrom(items, report);
   return (
     <ReportApp

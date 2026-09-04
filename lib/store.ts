@@ -11,7 +11,7 @@ import { withFileLease } from "./shared/file-lock";
 import { HK_REF, SEED_UNIVERSE, US_REF } from "./universe";
 import { reportIds } from "./universe-query";
 
-export { intersectReport, reportIds } from "./universe-query";
+export { intersectReport, presentReport, reportIds } from "./universe-query";
 
 const DATA = path.join(process.cwd(), "data");
 const STATE = path.join(DATA, "state.json");

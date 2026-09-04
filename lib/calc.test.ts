@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { movementSignals, tagRow } from "./calc";
+import { movementSignals, rowDisplayName, tagRow } from "./calc";
+import type { UniverseItem } from "./types";
+
+function item(partial: Partial<UniverseItem> & Pick<UniverseItem, "market" | "name">): UniverseItem {
+  return {
+    id: partial.id ?? "X",
+    display: partial.display ?? "X",
+    yahoo: partial.yahoo ?? "X",
+    benchmark: partial.benchmark ?? "VOO",
+    group: partial.group ?? "测试",
+    notes: partial.notes ?? [],
+    identity: partial.identity ?? [],
+    ...partial,
+  };
+}
 
 const base = {
   ret1D: 0,
@@ -39,5 +53,22 @@ describe("row attention classification", () => {
     assert.equal(signals.triggerCount, 2);
     assert.equal(signals.severe, true);
     assert.equal(signals.severity, 2);
+  });
+});
+
+describe("rowDisplayName", () => {
+  it("keeps US rows on the maintained English name", () => {
+    const us = item({ market: "US", name: "Intuit" });
+    assert.equal(rowDisplayName(us, { yahoo: "INTU", symbol: "INTU", shortName: "财捷" }), "Intuit");
+    assert.equal(rowDisplayName(us), "Intuit");
+  });
+
+  it("prefers the quote name for HK rows", () => {
+    const hk = item({ id: "01024", display: "01024.HK", yahoo: "1024.HK", market: "HK", name: "快手-W" });
+    assert.equal(
+      rowDisplayName(hk, { yahoo: "1024.HK", symbol: "01024", shortName: "快手-W" }),
+      "快手-W",
+    );
+    assert.equal(rowDisplayName(hk), "快手-W");
   });
 });

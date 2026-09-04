@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import type { DailyReport, UniversePayload } from "@/lib/types";
-import { intersectReport } from "@/lib/universe-query";
+import { presentReport } from "@/lib/universe-query";
 import { Briefing } from "./Briefing";
 import { DeskMark } from "./DeskMark";
 import { UniversePanel } from "./UniversePanel";
@@ -128,7 +128,7 @@ export function ReportApp({
   function onChanged(next: UniversePayload, extra?: { started?: boolean }) {
     setUniverse(next);
     setReport((prev) =>
-      prev ? intersectReport(prev, new Set(next.items.map((item) => item.id))) : prev,
+      prev ? presentReport(prev, next.items) : prev,
     );
     if (extra?.started) {
       setUpdating(true);

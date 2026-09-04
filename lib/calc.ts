@@ -9,6 +9,12 @@ import type {
 } from "./types";
 import { sourceLinks } from "./universe";
 
+export function rowDisplayName(item: UniverseItem, quote?: QuoteSnapshot): string {
+  if (item.market === "US") return item.name;
+  const quoted = quote?.shortName?.trim();
+  return quoted || item.name;
+}
+
 export function classifyVolume(ratio: number | null): VolumeClass | null {
   if (ratio === null || Number.isNaN(ratio)) return null;
   if (ratio >= 1.5) return "明显放量";
@@ -281,7 +287,7 @@ export function buildRow(
   return {
     id: item.id,
     display: item.display,
-    name: bundle.quote?.shortName || item.name,
+    name: rowDisplayName(item, bundle.quote),
     yahoo: item.yahoo,
     market: item.market,
     group: item.group,
