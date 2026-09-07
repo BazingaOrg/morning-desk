@@ -33,12 +33,20 @@ function tagShort(tag: RowTag): string | null {
   return null;
 }
 
+type TagFilter = "all" | "数据异常" | "重点关注" | "明显走强";
 type NumericSortKey = "ret1D" | "ret10D" | "excess10D" | "volumeRatio";
 type SortDirection = "asc" | "desc";
 type SortState = {
   key: "default" | NumericSortKey;
   direction: SortDirection;
 };
+
+const TAG_FILTERS: { id: TagFilter; label: string }[] = [
+  { id: "all", label: "全部" },
+  { id: "数据异常", label: "数据异常" },
+  { id: "重点关注", label: "重点关注" },
+  { id: "明显走强", label: "明显走强" },
+];
 
 const DEFAULT_SORT: SortState = { key: "default", direction: "desc" };
 
@@ -187,17 +195,31 @@ function BookList({ rows }: { rows: SecurityRow[] }) {
 
 function UniverseTable({
   rows,
-  caption,
+  market,
   id,
   eyebrow,
 }: {
   rows: SecurityRow[];
-  caption: string;
+  market: string;
   id: string;
   eyebrow: string;
 }) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  const sortedRows = useMemo(() => sortRowsForView(rows, sort), [rows, sort]);
+  const [filter, setFilter] = useState<TagFilter>("all");
+  const counts = useMemo(() => {
+    const next = { 数据异常: 0, 重点关注: 0, 明显走强: 0, 正常: 0 };
+    for (const row of rows) next[row.tag] += 1;
+    return next;
+  }, [rows]);
+  const visibleRows = useMemo(
+    () => (filter === "all" ? rows : rows.filter((row) => row.tag === filter)),
+    [rows, filter],
+  );
+  const sortedRows = useMemo(() => sortRowsForView(visibleRows, sort), [visibleRows, sort]);
+  const caption =
+    filter === "all"
+      ? `${market} · ${rows.length} 只`
+      : `${market} · ${visibleRows.length} / ${rows.length}`;
 
   function changeSort(key: NumericSortKey) {
     setSort((current) => {
@@ -223,11 +245,28 @@ function UniverseTable({
       <p className="eyebrow">{eyebrow}</p>
       <h2>{caption}</h2>
       <div className="list-tools">
-        <p className="legend">
-          <span><i style={{ background: "var(--oxblood)" }} />数据异常</span>
-          <span><i style={{ background: "var(--gold)" }} />重点关注</span>
-          <span><i style={{ background: "var(--verdant)" }} />明显走强</span>
-        </p>
+        <div className="legend" role="group" aria-label="按状态筛选">
+          {TAG_FILTERS.map((item) => {
+            const count = item.id === "all" ? rows.length : counts[item.id];
+            const pressed = filter === item.id;
+            return (
+              <button
+                key={item.id}
+                className="legend-btn"
+                type="button"
+                data-tag={item.id}
+                aria-pressed={pressed}
+                onClick={() =>
+                  setFilter((current) => (current === item.id && item.id !== "all" ? "all" : item.id))
+                }
+              >
+                {item.id !== "all" ? <i aria-hidden="true" /> : null}
+                {item.label}
+                <span className="legend-count">{count}</span>
+              </button>
+            );
+          })}
+        </div>
         {sort.key !== "default" ? (
           <button className="sort-reset" type="button" onClick={() => setSort(DEFAULT_SORT)}>默认顺序</button>
         ) : null}
@@ -246,8 +285,12 @@ function UniverseTable({
           </select>
         </label>
       </div>
-      <BookList rows={sortedRows} />
-      <div className="table-wrap">
+      {sortedRows.length === 0 ? (
+        <p className="empty">{filter === "all" ? "名单为空。" : `没有「${filter}」的标的。`}</p>
+      ) : (
+        <>
+          <BookList rows={sortedRows} />
+          <div className="table-wrap">
         <table className="tape-table">
           <colgroup>
             <col className="c-code" />
@@ -298,7 +341,9 @@ function UniverseTable({
             ))}
           </tbody>
         </table>
-      </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -459,20 +504,20 @@ export function Briefing({
               </div>
             )}
             <p className="footnote">
-              「为何入选」是价格或量能规则。只有对上 SEC / HKEX 原文时，代码下方才出现可点击公告。
+              当日有新收盘的市场里，最多八条：数据异常、公告、拆股或停牌，或日涨跌、10日超额、量能触线。按异常、公告、信号强弱排序。「为何入选」对上 SEC / HKEX 原文时，代码下方才出现可点击公告。
             </p>
           </section>
         ) : null}
 
         <UniverseTable
           rows={report.usRows}
-          caption={`美股 · ${report.usRows.length} 只`}
+          market="美股"
           id="us"
           eyebrow="—— 卷三 · 美股"
         />
         <UniverseTable
           rows={report.hkRows}
-          caption={`港股 · ${report.hkRows.length} 只`}
+          market="港股"
           id="hk"
           eyebrow="—— 卷四 · 港股"
         />

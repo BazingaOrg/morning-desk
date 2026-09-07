@@ -567,9 +567,18 @@ table.tape-table td:first-child {
   font-weight: 500;
 }
 
-table.tape-table tr[data-tag="数据异常"] td:first-child { box-shadow: inset 3px 0 0 var(--oxblood); }
-table.tape-table tr[data-tag="重点关注"] td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
-table.tape-table tr[data-tag="明显走强"] td:first-child { box-shadow: inset 3px 0 0 var(--verdant); }
+table.tape-table td:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: 2px;
+  background: transparent;
+}
+table.tape-table tr[data-tag="数据异常"] td:first-child::before { background: var(--oxblood); }
+table.tape-table tr[data-tag="重点关注"] td:first-child::before { background: var(--gold); }
+table.tape-table tr[data-tag="明显走强"] td:first-child::before { background: var(--verdant); }
 
 table.tape-table td {
   transition: background-color 120ms var(--ease-out);
@@ -592,20 +601,59 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 
 .legend {
   display: flex;
-  gap: 16px;
+  gap: 4px 14px;
   flex-wrap: wrap;
   margin: 0;
   font-size: var(--fs-meta);
   color: var(--mute);
 }
 
-.legend i {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 6px;
-  vertical-align: -1px;
+.legend-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: var(--mute);
+  font: inherit;
+  cursor: pointer;
+  transition: color 140ms var(--ease-out), transform 120ms var(--ease-out);
 }
+
+@media (hover: hover) and (pointer: fine) {
+  .legend-btn:hover { color: var(--ink); }
+}
+
+.legend-btn:active {
+  transform: scale(0.97);
+}
+
+.legend-btn[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.legend-btn i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: currentColor;
+}
+
+.legend-btn[data-tag="数据异常"] i { background: var(--oxblood); }
+.legend-btn[data-tag="重点关注"] i { background: var(--gold); }
+.legend-btn[data-tag="明显走强"] i { background: var(--verdant); }
+
+.legend-btn[data-tag="数据异常"][aria-pressed="true"] { color: var(--oxblood); }
+.legend-btn[data-tag="重点关注"][aria-pressed="true"] { color: var(--gold); }
+.legend-btn[data-tag="明显走强"][aria-pressed="true"] { color: var(--verdant); }
+
+.legend-count {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-btn[aria-pressed="true"] .legend-count { color: inherit; }
 
 .sort-reset,
 .sort-heading {
@@ -635,6 +683,7 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 
 .sort-reset:focus-visible,
 .sort-heading:focus-visible,
+.legend-btn:focus-visible,
 .mobile-sort select:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 3px;
@@ -888,9 +937,6 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
     border-bottom: 1px solid var(--rule);
   }
   .book-item { border-bottom: 1px solid var(--rule); }
-  .book-item[data-tag="数据异常"] { box-shadow: inset 3px 0 0 var(--oxblood); }
-  .book-item[data-tag="重点关注"] { box-shadow: inset 3px 0 0 var(--gold); }
-  .book-item[data-tag="明显走强"] { box-shadow: inset 3px 0 0 var(--verdant); }
   .book-row {
     display: flex;
     align-items: baseline;
