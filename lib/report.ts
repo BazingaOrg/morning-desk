@@ -102,12 +102,12 @@ function buildConclusion(
   hk: MarketStamp,
   usRows: SecurityRow[],
   hkRows: SecurityRow[],
-  movers: MoverLine[],
 ): string[] {
   if (us.closed && hk.closed) {
     return [];
   }
   const lines: string[] = [];
+  const unchangedMarkets: string[] = [];
   if (us.isNew) {
     const up = usRows.filter((r) => (r.ret1D ?? 0) > 0).length;
     const beat = usRows.filter((r) => (r.excess10D ?? 0) > 0).length;
@@ -121,7 +121,7 @@ function buildConclusion(
           : ""),
     );
   } else {
-    lines.push("美股今日无新的完整收盘，不重复解读旧行情。");
+    unchangedMarkets.push("美股");
   }
   if (hk.isNew) {
     const up = hkRows.filter((r) => (r.ret1D ?? 0) > 0).length;
@@ -135,19 +135,12 @@ function buildConclusion(
           : ""),
     );
   } else {
-    lines.push("港股今日无新的完整收盘，不重复解读旧行情。");
+    unchangedMarkets.push("港股");
   }
-
-  const volumeHot = movers.filter((m) => m.nature.includes("放量") || m.nature.includes("缩量"));
-  if (volumeHot.length) {
-    lines.push(
-      `量能极端 ${volumeHot.length} 只：${volumeHot
-        .slice(0, 4)
-        .map((m) => m.display)
-        .join("、")}${volumeHot.length > 4 ? " 等" : ""}。`,
-    );
-  } else if (us.isNew || hk.isNew) {
-    lines.push("未见明显放量或明显缩量的新异动。");
+  if (unchangedMarkets.length === 2) {
+    lines.push("美股、港股今日均无新的完整收盘，不重复解读旧行情。");
+  } else if (unchangedMarkets.length === 1) {
+    lines.push(`${unchangedMarkets[0]}今日无新的完整收盘，不重复解读旧行情。`);
   }
 
   return lines.slice(0, 5);
@@ -377,7 +370,7 @@ export async function generateReport(): Promise<DailyReport> {
   if (hk.isNew) allow.add("HK");
   const movers = closedBoth ? [] : pickMovers([...usRows, ...hkRows], allow, factById);
   const chops = buildChops(us, hk, [...usRows, ...hkRows]);
-  const conclusion = buildConclusion(us, hk, usRows, hkRows, movers);
+  const conclusion = buildConclusion(us, hk, usRows, hkRows);
 
   const catalysts: Catalyst[] = [];
   for (const item of items) {

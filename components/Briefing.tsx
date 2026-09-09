@@ -107,15 +107,11 @@ function kpis(report: DailyReport) {
   const ranked = [...groups.entries()]
     .map(([name, xs]) => ({ name, xs: xs.reduce((a, b) => a + b, 0) / xs.length }))
     .sort((a, b) => b.xs - a.xs);
-  const volume = live.filter((r) => r.volumeClass === "明显放量" || r.volumeClass === "明显缩量").length;
-  const filings = report.movers.filter((m) => m.reasonHref).length;
   return {
     breadth: live.length ? `${up}/${live.length}` : "—",
     breadthNote: `收跌 ${down}　·　${report.chops.find((c) => c.key === "risk")?.value ?? ""}`,
     strong: ranked[0]?.name ?? "—",
     weak: ranked.at(-1)?.name ?? "—",
-    volume: String(volume),
-    filings: String(filings),
   };
 }
 
@@ -396,8 +392,6 @@ export function Briefing({
                 强 {stat.strong}
                 <span className="tape-dot"> · </span>
                 弱 {stat.weak}
-                <span className="tape-dot"> · </span>
-                量能 {stat.volume}
               </p>
             </div>
             <div className="session-pills">
@@ -433,16 +427,6 @@ export function Briefing({
                 <b>{stat.weak}</b>
                 <span>不是买卖方向</span>
               </div>
-              <div className="kpi">
-                <small>量能极端</small>
-                <b>{stat.volume}</b>
-                <span>明显放量或缩量</span>
-              </div>
-              <div className="kpi">
-                <small>对上公告</small>
-                <b>{stat.filings}</b>
-                <span>SEC / HKEX 原文</span>
-              </div>
             </div>
           </div>
           {report.closedBoth ? <div className="closed-banner">{report.closedNote}</div> : null}
@@ -465,7 +449,7 @@ export function Briefing({
         {!report.closedBoth ? (
           <section className="section" id="movers">
             <p className="eyebrow">—— 卷二 · 重点异动</p>
-            <h2>最多八条</h2>
+            <h2>{report.movers.length > 0 ? "最多八条" : "今日新异动"}</h2>
             {report.movers.length === 0 ? (
               <p className="empty">今日无符合进入条件的新异动。</p>
             ) : (
@@ -503,9 +487,9 @@ export function Briefing({
                 ))}
               </div>
             )}
-            <p className="footnote">
-              当日有新收盘的市场里，最多八条：数据异常、公告、拆股或停牌，或日涨跌、10日超额、量能触线。按异常、公告、信号强弱排序。「为何入选」对上 SEC / HKEX 原文时，代码下方才出现可点击公告。
-            </p>
+            {report.movers.length > 0 ? (
+              <p className="footnote">最多八条，按数据异常、公告、信号强弱排序；「为何入选」列出已核验的触发条件。</p>
+            ) : null}
           </section>
         ) : null}
 

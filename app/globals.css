@@ -600,10 +600,16 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 }
 
 .legend {
-  display: flex;
-  gap: 4px 14px;
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
   flex-wrap: wrap;
   margin: 0;
+  padding: 3px;
+  border: 1px solid var(--rule);
+  background: var(--paper-tint);
   font-size: var(--fs-meta);
   color: var(--mute);
 }
@@ -612,8 +618,9 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 0;
-  padding: 2px 0;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--mute);
   font: inherit;
@@ -622,7 +629,10 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .legend-btn:hover { color: var(--ink); }
+  .legend-btn:hover {
+    background: color-mix(in srgb, var(--sheet) 70%, transparent);
+    color: var(--ink);
+  }
 }
 
 .legend-btn:active {
@@ -630,10 +640,15 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 }
 
 .legend-btn[aria-pressed="true"] {
+  border-color: var(--hair);
+  background: var(--sheet);
   color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
 .legend-btn i {
+  flex: 0 0 auto;
   display: inline-block;
   width: 7px;
   height: 7px;
@@ -649,11 +664,21 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
 .legend-btn[data-tag="明显走强"][aria-pressed="true"] { color: var(--verdant); }
 
 .legend-count {
+  min-width: 1.5em;
+  padding: 0 4px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
   color: var(--faint);
   font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  text-align: center;
 }
 
-.legend-btn[aria-pressed="true"] .legend-count { color: inherit; }
+.legend-btn[aria-pressed="true"] .legend-count {
+  border-color: currentColor;
+  background: transparent;
+  color: inherit;
+}
 
 .sort-reset,
 .sort-heading {
@@ -792,11 +817,18 @@ table.tape-table tbody tr:hover td:first-child { background: var(--row-hover); }
   .catalyst-item { grid-template-columns: 1fr; }
   .section, .splash, .colophon { padding-left: 16px; padding-right: 16px; }
   .list-tools {
-    align-items: flex-end;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .legend {
+    width: 100%;
+    flex: none;
   }
   .sort-reset { display: none; }
   .mobile-sort {
     display: grid;
+    align-self: flex-end;
     flex: 0 0 auto;
     gap: 3px;
     color: var(--mute);
