@@ -115,6 +115,8 @@ export interface MoverLine {
   id: string;
   display: string;
   name: string;
+  group: string;
+  close: number | null;
   ret1D: number | null;
   ret10D: number | null;
   excess10D: number | null;

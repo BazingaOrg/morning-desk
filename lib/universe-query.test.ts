@@ -82,6 +82,8 @@ describe("presentReport", () => {
             id: "INTU",
             display: "INTU",
             name: "财捷",
+            group: "软件",
+            close: null,
             ret1D: null,
             ret10D: null,
             excess10D: null,

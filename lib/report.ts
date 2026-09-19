@@ -152,8 +152,10 @@ function natureOf(row: SecurityRow): string {
   if (row.halted) bits.push("停牌");
   if (!row.identityOk) bits.push("代码核验");
   if (row.volumeClass === "明显放量" || row.volumeClass === "明显缩量") bits.push(row.volumeClass);
-  if (row.ret1D !== null && Math.abs(row.ret1D) >= 0.03) bits.push("日涨跌");
-  if (row.excess10D !== null && Math.abs(row.excess10D) >= 0.05) bits.push("相对强弱");
+  if (row.ret1D !== null && Math.abs(row.ret1D) >= 0.03) bits.push(row.ret1D >= 0 ? "1D上涨" : "1D下跌");
+  if (row.excess10D !== null && Math.abs(row.excess10D) >= 0.05) {
+    bits.push(row.excess10D >= 0 ? "相对走强" : "相对走弱");
+  }
   if (row.moverReasons.some((x) => /8-K|10-Q|10-K|6-K|HK|董事会|股东|业绩/.test(x))) bits.push("公告");
   return bits.slice(0, 3).join("／") || "异动";
 }
@@ -196,7 +198,8 @@ function pickMovers(
         entry.dataAnomaly ||
         entry.officialEvent ||
         entry.materialEvent ||
-        entry.signals.triggerCount > 0,
+        entry.signals.severe ||
+        entry.signals.triggerCount >= 2,
     )
     .sort(
       (a, b) =>
@@ -215,6 +218,8 @@ function pickMovers(
         id: r.id,
         display: r.display,
         name: r.name,
+        group: r.group,
+        close: r.close,
         ret1D: r.ret1D,
         ret10D: r.ret10D,
         excess10D: r.excess10D,
