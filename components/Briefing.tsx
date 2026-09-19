@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DeskMark } from "@/components/DeskMark";
 import { pct, price, ratio, signedClass } from "@/lib/format";
 import type { DailyReport, RowTag, SecurityRow } from "@/lib/types";
@@ -31,6 +31,10 @@ function tagShort(tag: RowTag): string | null {
   if (tag === "重点关注") return "关注";
   if (tag === "明显走强") return "走强";
   return null;
+}
+
+function groupLabel(group: string): string {
+  return group.replace(/^港股\s*/, "") || group;
 }
 
 type TagFilter = "all" | "数据异常" | "重点关注" | "明显走强";
@@ -88,6 +92,77 @@ function SortableHeader({
         {label}<span aria-hidden="true">{direction === "desc" ? "↓" : direction === "asc" ? "↑" : "↕"}</span>
       </button>
     </th>
+  );
+}
+
+type GroupTab = { id: string; label: string; count: number };
+
+function GroupSelect({
+  tabs,
+  value,
+  label,
+  onChange,
+}: {
+  tabs: GroupTab[];
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const active = tabs.find((tab) => tab.id === value) ?? tabs[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="group-select">
+      <span className="group-select-label">{label}</span>
+      <button
+        type="button"
+        className="group-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{active?.label ?? "全部"}</span>
+        <span className="group-select-count">{active?.count ?? 0}</span>
+        <span className="group-select-chevron" aria-hidden="true">⌄</span>
+      </button>
+      {open ? (
+        <div className="group-select-menu" role="listbox" aria-label={label}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="option"
+              aria-selected={value === tab.id}
+              className="group-select-option"
+              onClick={() => {
+                onChange(tab.id);
+                setOpen(false);
+              }}
+            >
+              <span>{tab.label}</span>
+              <span>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -202,20 +277,33 @@ function UniverseTable({
 }) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
   const [filter, setFilter] = useState<TagFilter>("all");
+  const [groupFilter, setGroupFilter] = useState("all");
+  const groupRows = useMemo(
+    () => groupFilter === "all" ? rows : rows.filter((row) => row.group === groupFilter),
+    [rows, groupFilter],
+  );
   const counts = useMemo(() => {
     const next = { 数据异常: 0, 重点关注: 0, 明显走强: 0, 正常: 0 };
-    for (const row of rows) next[row.tag] += 1;
+    for (const row of groupRows) next[row.tag] += 1;
     return next;
-  }, [rows]);
+  }, [groupRows]);
   const visibleRows = useMemo(
-    () => (filter === "all" ? rows : rows.filter((row) => row.tag === filter)),
-    [rows, filter],
+    () => filter === "all" ? groupRows : groupRows.filter((row) => row.tag === filter),
+    [groupRows, filter],
   );
   const sortedRows = useMemo(() => sortRowsForView(visibleRows, sort), [visibleRows, sort]);
+  const groupTabs = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(row.group || "未分组", (counts.get(row.group || "未分组") ?? 0) + 1);
+    return [
+      { id: "all", label: "全部", count: rows.length },
+      ...[...counts.entries()].map(([id, count]) => ({ id, label: id, count })),
+    ];
+  }, [rows]);
   const caption =
-    filter === "all"
+    filter === "all" && groupFilter === "all"
       ? `${market} · ${rows.length} 只`
-      : `${market} · ${visibleRows.length} / ${rows.length}`;
+      : `${market} · ${groupFilter === "all" ? "" : `${groupLabel(groupFilter)} · `}${visibleRows.length} / ${rows.length}`;
 
   function changeSort(key: NumericSortKey) {
     setSort((current) => {
@@ -242,8 +330,14 @@ function UniverseTable({
       <h2>{caption}</h2>
       <div className="list-tools">
         <div className="legend" role="group" aria-label="按状态筛选">
-          {TAG_FILTERS.map((item) => {
-            const count = item.id === "all" ? rows.length : counts[item.id];
+          <GroupSelect
+            tabs={groupTabs.map((tab) => ({ ...tab, label: groupLabel(tab.label) }))}
+            value={groupFilter}
+            label="板块"
+            onChange={setGroupFilter}
+          />
+          {TAG_FILTERS.filter((item) => item.id !== "all").map((item) => {
+            const count = counts[item.id as Exclude<TagFilter, "all">];
             const pressed = filter === item.id;
             return (
               <button
@@ -282,7 +376,7 @@ function UniverseTable({
         </label>
       </div>
       {sortedRows.length === 0 ? (
-        <p className="empty">{filter === "all" ? "名单为空。" : `没有「${filter}」的标的。`}</p>
+        <p className="empty">{filter === "all" && groupFilter === "all" ? "名单为空。" : "当前筛选没有标的。"}</p>
       ) : (
         <>
           <BookList rows={sortedRows} />
@@ -353,6 +447,19 @@ export function Briefing({
 }) {
   const stat = kpis(report);
   const showCatalysts = report.catalysts.length > 0;
+  const [moverGroup, setMoverGroup] = useState("all");
+  const moverTabs = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const mover of report.movers) counts.set(mover.group || "未分组", (counts.get(mover.group || "未分组") ?? 0) + 1);
+    return [
+      { id: "all", label: "全部", count: report.movers.length },
+      ...[...counts.entries()].map(([id, count]) => ({ id, label: id, count })),
+    ];
+  }, [report.movers]);
+  const visibleMovers = useMemo(
+    () => moverGroup === "all" ? report.movers : report.movers.filter((mover) => mover.group === moverGroup),
+    [report.movers, moverGroup],
+  );
 
   return (
     <article>
@@ -453,16 +560,25 @@ export function Briefing({
             {report.movers.length === 0 ? (
               <p className="empty">今日无符合进入条件的新异动。</p>
             ) : (
-              <div className="movers">
+              <>
+                <GroupSelect
+                  tabs={moverTabs.map((tab) => ({ ...tab, label: groupLabel(tab.label) }))}
+                  value={moverGroup}
+                  label="重点异动按板块筛选"
+                  onChange={setMoverGroup}
+                />
+                <div className="movers">
                 <div className="mover-head">
                   <div>代码</div>
+                  <div>分组</div>
+                  <div>收盘</div>
                   <div>1D</div>
                   <div>10D</div>
                   <div>超额</div>
                   <div>量比</div>
-                  <div>为何入选</div>
+                  <div>触发</div>
                 </div>
-                {report.movers.map((m) => (
+                {visibleMovers.map((m) => (
                   <div key={m.id} className="mover">
                     <div className="mover-who">
                       <span className="sym">{m.display}</span>
@@ -473,22 +589,26 @@ export function Briefing({
                         </a>
                       ) : null}
                     </div>
+                    <div className="mover-group" data-label="分组">{groupLabel(m.group)}</div>
+                    <div className="mover-close mono" data-label="收盘">{price(m.close)}</div>
                     <div className={`mover-ret1 mono ${signedClass(m.ret1D)}`} data-label="1D">{pct(m.ret1D)}</div>
                     <div className={`mover-ret10 mono ${signedClass(m.ret10D)}`} data-label="10D">{pct(m.ret10D)}</div>
                     <div className={`mover-xs mono ${signedClass(m.excess10D)}`} data-label="超额">{pct(m.excess10D)}</div>
                     <div className="mover-vol mono" data-label="量比">{ratio(m.volumeRatio)}</div>
                     <div className="mover-aux">
+                      <span>收盘 {price(m.close)}</span>
                       <span>10D {pct(m.ret10D)}</span>
                       <span>超额 {pct(m.excess10D)}</span>
                       <span>量比 {ratio(m.volumeRatio)}</span>
                     </div>
-                    <div className="mover-why" data-label="为何">{m.nature}</div>
+                    <div className="mover-why" data-label="触发">{m.nature}</div>
                   </div>
                 ))}
-              </div>
+                </div>
+              </>
             )}
             {report.movers.length > 0 ? (
-              <p className="footnote">最多八条，按数据异常、公告、信号强弱排序；「为何入选」列出已核验的触发条件。</p>
+              <p className="footnote">最多八条；数据异常、公告/公司事件直接进入，价格异动需满足一项严重触发或两项普通触发。普通阈值：|1D| ≥ 3%、|10D 超额| ≥ 5%、量比 ≥ 1.5 或 &lt; 0.6；严重阈值：6%、10%、2 或 0.4。</p>
             ) : null}
           </section>
         ) : null}

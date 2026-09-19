@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
 import type { DailyReport, UniversePayload } from "@/lib/types";
 import { presentReport } from "@/lib/universe-query";
 import { Briefing } from "./Briefing";
@@ -101,8 +100,7 @@ export function ReportApp({
     };
   }, [report, updating]);
 
-  function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark";
+  function setTheme(next: "light" | "dark") {
     document.documentElement.dataset.theme = next;
     try {
       localStorage.setItem("desk-theme", next);
@@ -141,7 +139,6 @@ export function ReportApp({
     <div className="app">
       <header className="volnav">
         <nav className="vol-links" aria-label="分卷">
-          <Link href="/" aria-current="true">晨报</Link>
           <a href="#lede" aria-current={active === "lede" ? "true" : undefined}>判断</a>
           <a href="#movers" aria-current={active === "movers" ? "true" : undefined}>异动</a>
           <a href="#us" aria-current={active === "us" ? "true" : undefined}>美股</a>
@@ -160,15 +157,22 @@ export function ReportApp({
           >
             名单
           </button>
-          <button
-            className="ghost theme-toggle"
-            onClick={toggleTheme}
-            type="button"
-            aria-pressed={theme === "dark"}
-            aria-label={theme === "dark" ? "切换到纸面" : "切换到夜读"}
-          >
-            {theme === "dark" ? "纸面" : "夜读"}
-          </button>
+          <div className="theme-switch" role="group" aria-label="显示主题">
+            <button
+              type="button"
+              aria-pressed={theme === "light"}
+              onClick={() => setTheme("light")}
+            >
+              日间
+            </button>
+            <button
+              type="button"
+              aria-pressed={theme === "dark"}
+              onClick={() => setTheme("dark")}
+            >
+              夜间
+            </button>
+          </div>
         </div>
       </header>
 
